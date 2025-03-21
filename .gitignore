@@ -1,0 +1,17 @@
+# Ignore node_modules directory
+
+# Ignore log files
+*.log
+
+# Ignore build directories
+dist/
+build/
+
+# Ignore environment variable files
+.env
+.env.local
+
+# Ignore system files
+.DS_Store
+Thumbs.db 
+canopen_cli
