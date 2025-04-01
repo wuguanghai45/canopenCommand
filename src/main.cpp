@@ -198,6 +198,7 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
             }
         }
 
+
         // Wait for response after block
         struct can_frame response;
         struct timeval timeout;
@@ -225,10 +226,9 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
 
         // Verify response format (A2 XX XX 00 00 00 00 00)
         if (response.data[0] != 0xA2) {
-            std::cerr << "Invalid response command specifier" << std::endl;
+            std::cerr << "Invalid response command specifier currentSegment: " << currentSegment << " segmentsInBlock: " << segmentsInBlock << std::endl;
             // return;
         }
-
         // Move to next block
         currentSegment += segmentsInBlock;
     }
