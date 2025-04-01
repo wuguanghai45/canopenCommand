@@ -179,7 +179,7 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
             // Set sequence number (add 0x80 if it's the last segment)
             frame.data[0] = i & 0x7F;  // 使用i作为序号，从1开始
             if (isLastSegment) {
-                std::cout << "isLastSegment" << std::endl;
+                std::cout << "isLastSegment, currentSegment: " << currentSegment << std::endl;
                 frame.data[0] |= 0x80;
             }
             
