@@ -164,6 +164,8 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
     size_t totalSegments = (dataSize + 6) / 7; // Calculate total number of segments
     size_t currentSegment = 1;
 
+    std::cout << "totalSegments: " << totalSegments << std::endl;
+
     // Process data in blocks of 127 segments
     while (currentSegment <= totalSegments) {
         // Calculate segments to send in this block
