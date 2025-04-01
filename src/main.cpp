@@ -160,45 +160,74 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
     frame.can_id = id + 0x600; // Convert id to can_id
     frame.can_dlc = 8;
 
-    size_t blockNumber = 1;
-    for (size_t i = 0; i < dataSize; i += 7) {
-        frame.data[0] = blockNumber & 0x7F; // Block sequence number
-        std::memcpy(&frame.data[1], &data[i], std::min(dataSize - i, size_t(7)));
+    const size_t BLOCK_SIZE = 127; // Maximum number of segments per block
+    size_t totalSegments = (dataSize + 6) / 7; // Calculate total number of segments
+    size_t currentSegment = 1;
 
-        if (write(socket, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame)) {
-            std::cerr << "Error in sending data block" << std::endl;
+    // Process data in blocks of 127 segments
+    while (currentSegment <= totalSegments) {
+        // Calculate segments to send in this block
+        size_t segmentsInBlock = std::min(BLOCK_SIZE, totalSegments - currentSegment + 1);
+        
+        // Send segments in current block
+        for (size_t i = 0; i < segmentsInBlock; i++) {
+            size_t dataOffset = (currentSegment - 1 + i) * 7;
+            bool isLastSegment = (currentSegment + i) == totalSegments;
+            
+            // Set sequence number (add 0x80 if it's the last segment)
+            frame.data[0] = (currentSegment + i) & 0x7F;
+            if (isLastSegment) {
+                frame.data[0] |= 0x80;
+            }
+            
+            // Copy data (up to 7 bytes)
+            size_t bytesToCopy = std::min(size_t(7), dataSize - dataOffset);
+            std::memcpy(&frame.data[1], &data[dataOffset], bytesToCopy);
+            
+            // Fill remaining bytes with zeros if needed
+            if (bytesToCopy < 7) {
+                std::memset(&frame.data[1 + bytesToCopy], 0, 7 - bytesToCopy);
+            }
+
+            if (write(socket, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame)) {
+                std::cerr << "Error in sending data block" << std::endl;
+                return;
+            }
         }
 
-        blockNumber++;
-    }
+        // Wait for response after block
+        struct can_frame response;
+        struct timeval timeout;
+        timeout.tv_sec = 2;
+        timeout.tv_usec = 0;
 
-    // Read response after all data blocks are sent
-    struct can_frame response;
-    struct timeval timeout;
-    timeout.tv_sec = 2; // 2 seconds timeout
-    timeout.tv_usec = 0;
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(socket, &readfds);
 
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(socket, &readfds);
+        int ret = select(socket + 1, &readfds, NULL, NULL, &timeout);
+        if (ret == -1) {
+            std::cerr << "Error in select" << std::endl;
+            return;
+        } else if (ret == 0) {
+            std::cerr << "Timeout waiting for response" << std::endl;
+            return;
+        }
 
-    int ret = select(socket + 1, &readfds, NULL, NULL, &timeout);
-    if (ret == -1) {
-        std::cerr << "Error in select" << std::endl;
-    } else if (ret == 0) {
-        std::cerr << "Timeout waiting for response" << std::endl;
-    } else {
         int nbytes = read(socket, &response, sizeof(struct can_frame));
         if (nbytes < 0) {
             std::cerr << "Error in receiving response" << std::endl;
-        } else {
-            std::cout << "Received response with ID: " << std::hex << response.can_id << std::endl;
-            std::cout << "Response data: ";
-            for (int i = 0; i < response.can_dlc; ++i) {
-                std::cout << std::hex << static_cast<int>(response.data[i]) << " ";
-            }
-            std::cout << std::endl;
+            return;
         }
+
+        // Verify response format (A2 XX XX 00 00 00 00 00)
+        if (response.data[0] != 0xA2) {
+            std::cerr << "Invalid response command specifier" << std::endl;
+            return;
+        }
+
+        // Move to next block
+        currentSegment += segmentsInBlock;
     }
 }
 
