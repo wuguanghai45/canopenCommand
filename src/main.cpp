@@ -177,6 +177,7 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
             // Set sequence number (add 0x80 if it's the last segment)
             frame.data[0] = i & 0x7F;  // 使用i作为序号，从1开始
             if (isLastSegment) {
+                std::cout << "isLastSegment" << std::endl;
                 frame.data[0] |= 0x80;
             }
             
@@ -208,22 +209,22 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
         int ret = select(socket + 1, &readfds, NULL, NULL, &timeout);
         if (ret == -1) {
             std::cerr << "Error in select" << std::endl;
-            return;
+            // return;
         } else if (ret == 0) {
             std::cerr << "Timeout waiting for response" << std::endl;
-            return;
+            // return;
         }
 
         int nbytes = read(socket, &response, sizeof(struct can_frame));
         if (nbytes < 0) {
             std::cerr << "Error in receiving response" << std::endl;
-            return;
+            // return;
         }
 
         // Verify response format (A2 XX XX 00 00 00 00 00)
         if (response.data[0] != 0xA2) {
             std::cerr << "Invalid response command specifier" << std::endl;
-            return;
+            // return;
         }
 
         // Move to next block
