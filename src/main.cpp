@@ -170,12 +170,12 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
         size_t segmentsInBlock = std::min(BLOCK_SIZE, totalSegments - currentSegment + 1);
         
         // Send segments in current block
-        for (size_t i = 0; i < segmentsInBlock; i++) {
-            size_t dataOffset = (currentSegment - 1 + i) * 7;
-            bool isLastSegment = (currentSegment + i) == totalSegments;
+        for (size_t i = 1; i <= segmentsInBlock; i++) {  // 从1开始计数
+            size_t dataOffset = (currentSegment - 1 + (i-1)) * 7;  // 修改偏移量计算
+            bool isLastSegment = (currentSegment + (i-1)) == totalSegments;
             
             // Set sequence number (add 0x80 if it's the last segment)
-            frame.data[0] = (currentSegment + i) & 0x7F;
+            frame.data[0] = i & 0x7F;  // 使用i作为序号，从1开始
             if (isLastSegment) {
                 frame.data[0] |= 0x80;
             }
@@ -347,11 +347,14 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
 
     // Execute the steps with the new id parameter
     sendESDO(socket, id);
+    std::cout << "sendESDO done" << std::endl;
     struct can_frame blockDownloadInitResponse;
     sdoBlockDownloadInit(socket, dataSize, id, blockDownloadInitResponse);
-
+    std::cout << "sdoBlockDownloadInit done" << std::endl;
     sendDataBlocks(socket, firmwareDataPtr, dataSize, id);
+    std::cout << "sendDataBlocks done" << std::endl;
     sdoBlockDownloadEnd(socket, crcValue, invalidLength, id);
+    std::cout << "sdoBlockDownloadEnd done" << std::endl;
 }
 
 int main(int argc, char **argv) {
