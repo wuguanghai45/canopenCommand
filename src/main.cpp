@@ -332,6 +332,7 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
     std::vector<uint8_t> hardwareVersion = getHardwareVersion(firmwareDataPtr, dataSize);
 
     // Print totalSegmentCount and lastSegmentSize
+    std::cout << "dataSize: " << dataSize << std::endl;
     std::cout << "Firmware CRC16: 0x" << std::hex << crcValue << std::endl;
     std::cout << "Total Segment Count: " << totalSegmentCount << std::endl;
     std::cout << "Last Segment Size: " << lastSegmentSize << std::endl;
