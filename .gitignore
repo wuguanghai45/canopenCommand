@@ -16,3 +16,4 @@ build/
 Thumbs.db 
 canopen_cli
 src/main.o
+.vscode/settings.json
