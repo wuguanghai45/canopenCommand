@@ -167,7 +167,7 @@ bool changeNodeId(int oldId, int newId, const char* canInterface) {
     
     // Step 1: Write new ID to 0x2001 subindex 1
     uint8_t data[8] = {
-        0x23, 0x01, 0x20, 0x01,  // SDO write command for 0x2001 subindex 1
+        0x2F, 0x01, 0x20, 0x01,  // SDO write command for 0x2001 subindex 1
         static_cast<uint8_t>(newId),  // New ID value
         0x00, 0x00, 0x00
     };
@@ -185,7 +185,7 @@ bool changeNodeId(int oldId, int newId, const char* canInterface) {
     
     // Step 2: Write save command to 0x1010 subindex 3
     uint8_t saveData[8] = {
-        0x23, 0x03, 0x10, 0x10,  // SDO write command for 0x1010 subindex 3
+        0x23, 0x10, 0x10, 0x03,  // SDO write command for 0x1010 subindex 3
         0x73, 0x61, 0x76, 0x65   // "save" in ASCII (0x65766173)
     };
     
