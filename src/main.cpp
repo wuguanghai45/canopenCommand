@@ -284,7 +284,7 @@ bool sdoBlockDownloadEnd(int socket, uint16_t crc, int invalidLength, int id) {
     }
 
     // Check if response indicates success (0x60)
-    if (response.data[0] != 0x60) {
+    if (response.data[0] != 0xA1) {
         std::cerr << "Unexpected response code: 0x" 
                   << std::hex 
                   << static_cast<int>(response.data[0]) 
