@@ -97,11 +97,16 @@ bool sendSDOWithTimeout(int socket, const uint8_t* data, size_t dataSize, int id
 }
 
 // Function to send ESDO command to trigger upgrade
-void sendESDO(int socket, int id) {
-
+bool sendESDO(int socket, int id) {
     struct can_frame response;
     uint8_t data[8] = {0x23, 0x40, 0x40, 0x00, 0x75, 0x70, 0x64, 0x74};
-    sendSDOWithTimeout(socket, data, 8, id, response);
+    bool ret;
+    ret = sendSDOWithTimeout(socket, data, 8, id, response);
+    std::cout << "sendESDO ret: " << ret << std::endl;
+
+    if (!ret) {
+        return false;
+    }
 
     // Check the response data for error
     if (response.data[0] == 0x80) {  // SDO abort code
@@ -110,7 +115,7 @@ void sendESDO(int socket, int id) {
                   << (response.data[4] | (response.data[5] << 8) | 
                       (response.data[6] << 16) | (response.data[7] << 24))
                   << std::endl;
-        return;
+        return false;
     }
 
     // Check if response indicates success (0x60)
@@ -119,14 +124,15 @@ void sendESDO(int socket, int id) {
                   << std::hex 
                   << static_cast<int>(response.data[0]) 
                   << std::endl;
-        return;
+        return false;
     }
 
     std::cout << "ESDO command sent successfully" << std::endl;
+    return true;
 }
 
 // Function to initiate SDO block download
-void sdoBlockDownloadInit(int socket, size_t byteCount, int id, struct can_frame &response) {
+bool sdoBlockDownloadInit(int socket, size_t byteCount, int id, struct can_frame &response) {
 
     uint8_t data[8] = {
         0xC6, 0x50, 0x1F, 0x00, 
@@ -135,7 +141,9 @@ void sdoBlockDownloadInit(int socket, size_t byteCount, int id, struct can_frame
         static_cast<uint8_t>((byteCount >> 16) & 0xFF),
         0x00
     };
-    sendSDOWithTimeout(socket, data, 8, id, response);
+    bool ret;
+    ret = sendSDOWithTimeout(socket, data, 8, id, response);
+    std::cout << "sdoBlockDownloadInit ret: " << ret << std::endl;
 
     if (response.data[0] == 0x80) {  // SDO abort code
         std::cerr << "SDO block download initiate failed with abort code: 0x" 
@@ -143,7 +151,7 @@ void sdoBlockDownloadInit(int socket, size_t byteCount, int id, struct can_frame
                   << (response.data[4] | (response.data[5] << 8) | 
                       (response.data[6] << 16) | (response.data[7] << 24))
                   << std::endl;
-        return;
+        return false;
     }
 
     if (response.data[0] != 0x60) {
@@ -151,12 +159,14 @@ void sdoBlockDownloadInit(int socket, size_t byteCount, int id, struct can_frame
                   << std::hex 
                   << static_cast<int>(response.data[0]) 
                   << std::endl;
-        return;
+        return false;
     }
+
+    return true;
 }
 
 // Function to send data blocks
-void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
+bool sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
     struct can_frame frame;
     frame.can_id = id + 0x600; // Convert id to can_id
     frame.can_dlc = 8;
@@ -195,10 +205,9 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
 
             if (write(socket, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame)) {
                 std::cerr << "Error in sending data block" << std::endl;
-                return;
+                return false;
             }
         }
-
 
         // Wait for response after block
         struct can_frame response;
@@ -213,16 +222,16 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
         int ret = select(socket + 1, &readfds, NULL, NULL, &timeout);
         if (ret == -1) {
             std::cerr << "Error in select" << std::endl;
-            // return;
+            return false;
         } else if (ret == 0) {
-            std::cerr << "Timeout waiting for response" << std::endl;
-            // return;
+            std::cerr << "Timeout waiting for response at segment " << currentSegment << std::endl;
+            return false;
         }
 
         int nbytes = read(socket, &response, sizeof(struct can_frame));
         if (nbytes < 0) {
             std::cerr << "Error in receiving response" << std::endl;
-            // return;
+            return false;
         }
 
         // Verify response format (A2 XX XX 00 00 00 00 00)
@@ -233,15 +242,16 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
             }
             std::cout << std::dec << std::endl;
             std::cerr << "Invalid response command specifier currentSegment: " << currentSegment << " segmentsInBlock: " << segmentsInBlock << std::endl;
-            // return;
+            return false;
         }
         // Move to next block
         currentSegment += segmentsInBlock;
     }
+    return true;
 }
 
 // Function to end SDO block download
-void sdoBlockDownloadEnd(int socket, uint16_t crc, int invalidLength, int id) {
+bool sdoBlockDownloadEnd(int socket, uint16_t crc, int invalidLength, int id) {
     struct can_frame response;
     uint8_t data[8];
 
@@ -268,7 +278,7 @@ void sdoBlockDownloadEnd(int socket, uint16_t crc, int invalidLength, int id) {
     // Use sendSDOWithTimeout to send the frame and handle the response
     if (!sendSDOWithTimeout(socket, data, 8, id, response)) {
         std::cerr << "Error in ending SDO block download" << std::endl;
-        return;
+        return false;
     }
 
     // Check the response data for error
@@ -278,7 +288,7 @@ void sdoBlockDownloadEnd(int socket, uint16_t crc, int invalidLength, int id) {
                   << (response.data[4] | (response.data[5] << 8) | 
                       (response.data[6] << 16) | (response.data[7] << 24))
                   << std::endl;
-        return;
+        return false;
     }
 
     // Check if response indicates success (0x60)
@@ -287,10 +297,11 @@ void sdoBlockDownloadEnd(int socket, uint16_t crc, int invalidLength, int id) {
                   << std::hex 
                   << static_cast<int>(response.data[0]) 
                   << std::endl;
-        return;
+        return false;
     }
 
     std::cout << "SDO block download ended successfully" << std::endl;
+    return true;
 }
 
 // Function to load firmware data from a file
@@ -376,15 +387,34 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
     // Example invalid length value
     int invalidLength = 7 - lastSegmentSize; // Set this to the desired value
 
+
+    bool ret;
     // Execute the steps with the new id parameter
-    sendESDO(socket, id);
+    ret = sendESDO(socket, id);
+    if(!ret) {  
+        std::cerr << "sendESDO failed" << std::endl;
+        return;
+    }
     std::cout << "sendESDO done" << std::endl;
+    sleep(3);  // Sleep for 2 seconds
     struct can_frame blockDownloadInitResponse;
-    sdoBlockDownloadInit(socket, dataSize, id, blockDownloadInitResponse);
+    ret = sdoBlockDownloadInit(socket, dataSize, id, blockDownloadInitResponse);
+    if(!ret) {
+        std::cerr << "sdoBlockDownloadInit failed" << std::endl;
+        return;
+    }
     std::cout << "sdoBlockDownloadInit done" << std::endl;
-    sendDataBlocks(socket, firmwareDataPtr, dataSize, id);
+    ret = sendDataBlocks(socket, firmwareDataPtr, dataSize, id);
+    if(!ret) {
+        std::cerr << "sendDataBlocks failed" << std::endl;
+        return;
+    }
     std::cout << "sendDataBlocks done" << std::endl;
-    sdoBlockDownloadEnd(socket, crcValue, invalidLength, id);
+    ret = sdoBlockDownloadEnd(socket, crcValue, invalidLength, id);
+    if(!ret) {
+        std::cerr << "sdoBlockDownloadEnd failed" << std::endl;
+        return;
+    }
     std::cout << "sdoBlockDownloadEnd done" << std::endl;
 }
 
