@@ -324,7 +324,29 @@ std::vector<uint8_t> getHardwareVersion(const uint8_t* firmwareDataPtr, size_t d
     return hardwareVersion;
 }
 
+// Function to send NMT restart command
+void sendNMTRestart(int socket, int id) {
+    struct can_frame frame;
+    frame.can_id = 0x000;  // NMT command ID
+    frame.can_dlc = 2;
+    frame.data[0] = 0x81;  // Restart command
+    frame.data[1] = id;    // Node ID
+
+    if (write(socket, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame)) {
+        std::cerr << "Error in sending NMT restart command" << std::endl;
+        return;
+    }
+
+    std::cout << "NMT restart command sent successfully" << std::endl;
+    
+    // Wait for a short time to allow the device to restart
+    usleep(2000000);  // Wait for 1 second
+}
+
 void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
+    // Send NMT restart command first
+    sendNMTRestart(socket, id);
+    
     // Load firmware data from the specified path
     std::vector<uint8_t> firmwareData = loadFirmwareData(firmwarePath);
     size_t dataSize = firmwareData.size();
@@ -403,6 +425,8 @@ int main(int argc, char **argv) {
         std::cerr << "Error in socket bind" << std::endl;
         return -2;
     }
+
+    
 
     // Set up CAN filter to only receive messages with specific IDs
     struct can_filter rfilter[2];
