@@ -349,9 +349,6 @@ std::string getHardwareVersion(const uint8_t* firmwareDataPtr, size_t dataSize) 
         ss.clear();
 
         std::string hexStr = stringToHex(decStr);
-    
-        // Output the version string for verification
-        std::cout << "Hardware Version: " << hexStr << std::endl;
         return hexStr;
 
     } else {
@@ -379,6 +376,39 @@ void sendNMTRestart(int socket, int id) {
     usleep(2000000);  // Wait for 1 second
 }
 
+// Function to read hardware version from SDO 0x1009
+std::string readHardwareVersion(int socket, int id) {
+    struct can_frame response;
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+
+    // Read 4 bytes from index 0x1009
+    for (int i = 1; i <= 4; i++) {
+        uint8_t data[8] = {
+            0x40, 0x09, 0x10, static_cast<uint8_t>(i),  // SDO read command for index 0x1009
+            0x00, 0x00, 0x00, 0x00
+        };
+
+        if (!sendSDOWithTimeout(socket, data, 8, id, response)) {
+            std::cerr << "Failed to read byte " << i << " of hardware version" << std::endl;
+            return "0.0.0.0";
+        }
+
+        // Check if response is valid (should start with 0x43)
+        if (response.data[0] != 0x43) {
+            std::cerr << "Invalid response format for byte " << i << std::endl;
+            return "0.0.0.0";
+        }
+
+        // Add the byte to the version string
+        ss << std::setw(2) << static_cast<int>(response.data[4]);
+        if (i < 4) {
+            ss << ".";
+        }
+    }
+
+    return ss.str();
+}
 
 void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
     // Send NMT restart command first
@@ -419,6 +449,11 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
     }
     std::cout << "sendESDO done" << std::endl;
     sleep(3);  // Sleep for 2 seconds
+
+    // Read hardware version before upgrade
+    std::string hwVersion = readHardwareVersion(s, id);
+    std::cout << "Current Hardware Version: " << hwVersion << std::endl;
+
     struct can_frame blockDownloadInitResponse;
     ret = sdoBlockDownloadInit(socket, dataSize, id, blockDownloadInitResponse);
     if(!ret) {
@@ -477,8 +512,6 @@ int main(int argc, char **argv) {
         std::cerr << "Error in socket bind" << std::endl;
         return -2;
     }
-
-    
 
     // Set up CAN filter to only receive messages with specific IDs
     struct can_filter rfilter[2];
