@@ -60,10 +60,100 @@ std::string stringToHex(const std::string& str) {
     return ss.str();
 }
 
-// Usage example
-void exampleUsage(const uint8_t* firmwareDataPtr, size_t dataSize) {
-    uint16_t crc = crc16(firmwareDataPtr, dataSize);
-    std::cout << "CRC16: " << std::hex << crc << std::endl;
+
+// Function to create and configure CAN socket
+int createCanSocket(const char* canInterface, int id) {
+    int s;
+    struct sockaddr_can addr;
+    struct ifreq ifr;
+
+    // Create socket
+    s = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+    if (s < 0) {
+        std::cerr << "Error while opening socket" << std::endl;
+        return -1;
+    }
+
+    // Specify CAN interface
+    strcpy(ifr.ifr_name, canInterface);
+    if (ioctl(s, SIOCGIFINDEX, &ifr) < 0) {
+        std::cerr << "Error getting interface index" << std::endl;
+        close(s);
+        return -1;
+    }
+
+    // Bind socket to CAN interface
+    addr.can_family = AF_CAN;
+    addr.can_ifindex = ifr.ifr_ifindex;
+    if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        std::cerr << "Error in socket bind" << std::endl;
+        close(s);
+        return -1;
+    }
+
+    // Set up CAN filter to only receive messages with specific IDs
+    struct can_filter rfilter[2];
+    rfilter[0].can_id = (id + 0x500) + 0x80;  // Response ID
+    rfilter[0].can_mask = CAN_SFF_MASK;        // Standard frame mask
+    rfilter[1].can_id = id + 0x600;            // Request ID
+    rfilter[1].can_mask = CAN_SFF_MASK;        // Standard frame mask
+
+    if (setsockopt(s, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
+        std::cerr << "Error setting CAN filter" << std::endl;
+        close(s);
+        return -1;
+    }
+
+    return s;
+}
+
+// Function to change node ID
+bool changeNodeId(int oldId, int newId) {
+    int socket = createCanSocket(argv[1], oldId);
+    if (socket < 0) {
+        std::cerr << "Failed to create CAN socket" << std::endl;
+        return false;
+    }
+
+    struct can_frame response;
+    
+    // Step 1: Write new ID to 0x2001 subindex 1
+    uint8_t data[8] = {
+        0x23, 0x01, 0x20, 0x01,  // SDO write command for 0x2001 subindex 1
+        static_cast<uint8_t>(newId),  // New ID value
+        0x00, 0x00, 0x00
+    };
+    
+    if (!sendSDOWithTimeout(socket, data, 8, oldId, response)) {
+        std::cerr << "Failed to write new ID" << std::endl;
+        return false;
+    }
+    
+    // Check response
+    if (response.data[0] != 0x60) {
+        std::cerr << "Unexpected response when writing new ID" << std::endl;
+        return false;
+    }
+    
+    // Step 2: Write save command to 0x1010 subindex 3
+    uint8_t saveData[8] = {
+        0x23, 0x03, 0x10, 0x10,  // SDO write command for 0x1010 subindex 3
+        0x73, 0x61, 0x76, 0x65   // "save" in ASCII (0x65766173)
+    };
+    
+    if (!sendSDOWithTimeout(socket, saveData, 8, oldId, response)) {
+        std::cerr << "Failed to write save command" << std::endl;
+        return false;
+    }
+    
+    // Check response
+    if (response.data[0] != 0x60) {
+        std::cerr << "Unexpected response when writing save command" << std::endl;
+        return false;
+    }
+    
+    std::cout << "Node ID changed successfully from " << oldId << " to " << newId << std::endl;
+    return true;
 }
 
 // Function to send SDO with timeout handling
@@ -485,101 +575,6 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
     sleep(3);
     // Change node ID
     changeNodeId(126, id);
-}
-
-// Function to change node ID
-bool changeNodeId(int oldId, int newId) {
-    int socket = createCanSocket(argv[1], oldId);
-    if (socket < 0) {
-        std::cerr << "Failed to create CAN socket" << std::endl;
-        return false;
-    }
-
-    struct can_frame response;
-    
-    // Step 1: Write new ID to 0x2001 subindex 1
-    uint8_t data[8] = {
-        0x23, 0x01, 0x20, 0x01,  // SDO write command for 0x2001 subindex 1
-        static_cast<uint8_t>(newId),  // New ID value
-        0x00, 0x00, 0x00
-    };
-    
-    if (!sendSDOWithTimeout(socket, data, 8, oldId, response)) {
-        std::cerr << "Failed to write new ID" << std::endl;
-        return false;
-    }
-    
-    // Check response
-    if (response.data[0] != 0x60) {
-        std::cerr << "Unexpected response when writing new ID" << std::endl;
-        return false;
-    }
-    
-    // Step 2: Write save command to 0x1010 subindex 3
-    uint8_t saveData[8] = {
-        0x23, 0x03, 0x10, 0x10,  // SDO write command for 0x1010 subindex 3
-        0x73, 0x61, 0x76, 0x65   // "save" in ASCII (0x65766173)
-    };
-    
-    if (!sendSDOWithTimeout(socket, saveData, 8, oldId, response)) {
-        std::cerr << "Failed to write save command" << std::endl;
-        return false;
-    }
-    
-    // Check response
-    if (response.data[0] != 0x60) {
-        std::cerr << "Unexpected response when writing save command" << std::endl;
-        return false;
-    }
-    
-    std::cout << "Node ID changed successfully from " << oldId << " to " << newId << std::endl;
-    return true;
-}
-
-// Function to create and configure CAN socket
-int createCanSocket(const char* canInterface, int id) {
-    int s;
-    struct sockaddr_can addr;
-    struct ifreq ifr;
-
-    // Create socket
-    s = socket(PF_CAN, SOCK_RAW, CAN_RAW);
-    if (s < 0) {
-        std::cerr << "Error while opening socket" << std::endl;
-        return -1;
-    }
-
-    // Specify CAN interface
-    strcpy(ifr.ifr_name, canInterface);
-    if (ioctl(s, SIOCGIFINDEX, &ifr) < 0) {
-        std::cerr << "Error getting interface index" << std::endl;
-        close(s);
-        return -1;
-    }
-
-    // Bind socket to CAN interface
-    addr.can_family = AF_CAN;
-    addr.can_ifindex = ifr.ifr_ifindex;
-    if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        std::cerr << "Error in socket bind" << std::endl;
-        close(s);
-        return -1;
-    }
-
-    // Set up CAN filter to only receive messages with specific IDs
-    struct can_filter rfilter[2];
-    rfilter[0].can_id = (id + 0x500) + 0x80;  // Response ID
-    rfilter[0].can_mask = CAN_SFF_MASK;        // Standard frame mask
-    rfilter[1].can_id = id + 0x600;            // Request ID
-    rfilter[1].can_mask = CAN_SFF_MASK;        // Standard frame mask
-
-    if (setsockopt(s, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
-        std::cerr << "Error setting CAN filter" << std::endl;
-        close(s);
-        return -1;
-    }
-
-    return s;
 }
 
 int main(int argc, char **argv) {
