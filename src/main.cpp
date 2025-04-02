@@ -60,6 +60,24 @@ std::string stringToHex(const std::string& str) {
     return ss.str();
 }
 
+// Function to send NMT restart command
+void sendNMTRestart(int socket, int id) {
+    struct can_frame frame;
+    frame.can_id = 0x000;  // NMT command ID
+    frame.can_dlc = 2;
+    frame.data[0] = 0x81;  // Restart command
+    frame.data[1] = id;    // Node ID
+
+    if (write(socket, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame)) {
+        std::cerr << "Error in sending NMT restart command" << std::endl;
+        return;
+    }
+
+    std::cout << "NMT restart command sent successfully" << std::endl;
+    
+    // Wait for a short time to allow the device to restart
+    usleep(2000000);  // Wait for 1 second
+}
 // Function to send SDO with timeout handling
 bool sendSDOWithTimeout(int socket, const uint8_t* data, size_t dataSize, int id, struct can_frame &response) {
     struct can_frame frame;
@@ -443,25 +461,6 @@ std::string getHardwareVersion(const uint8_t* firmwareDataPtr, size_t dataSize) 
         std::cerr << "Firmware data is too small to extract last 4 bytes" << std::endl;
         return "0.0.0.0";
     }
-}
-
-// Function to send NMT restart command
-void sendNMTRestart(int socket, int id) {
-    struct can_frame frame;
-    frame.can_id = 0x000;  // NMT command ID
-    frame.can_dlc = 2;
-    frame.data[0] = 0x81;  // Restart command
-    frame.data[1] = id;    // Node ID
-
-    if (write(socket, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame)) {
-        std::cerr << "Error in sending NMT restart command" << std::endl;
-        return;
-    }
-
-    std::cout << "NMT restart command sent successfully" << std::endl;
-    
-    // Wait for a short time to allow the device to restart
-    usleep(2000000);  // Wait for 1 second
 }
 
 // Function to read hardware version from SDO 0x1009
