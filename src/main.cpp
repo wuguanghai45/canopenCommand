@@ -42,6 +42,24 @@ uint16_t crc16(const uint8_t* data, size_t length) {
     return crcValue;
 }
 
+// Function to convert string to hex string
+std::string stringToHex(const std::string& str) {
+    // Convert string to integer
+    uint32_t num = std::stoul(str);
+    
+    // Convert to hex string with dots
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    
+    // Extract each byte and format with dots
+    ss << std::setw(2) << ((num & 0xFF000000) >> 24) << ".";
+    ss << std::setw(2) << ((num & 0x00FF0000) >> 16) << ".";
+    ss << std::setw(2) << ((num & 0x0000FF00) >> 8) << ".";
+    ss << std::setw(2) << (num & 0x000000FF);
+    
+    return ss.str();
+}
+
 // Usage example
 void exampleUsage(const uint8_t* firmwareDataPtr, size_t dataSize) {
     uint16_t crc = crc16(firmwareDataPtr, dataSize);
@@ -324,17 +342,22 @@ std::string getHardwareVersion(const uint8_t* firmwareDataPtr, size_t dataSize) 
         for (int i = 0; i < 4; i++) {
             uint8_t byte = (version >> (i * 8)) & 0xFF;
             ss << std::setw(2) << static_cast<int>(byte);
-            if (i < 3) ss << ".";
         }
+        // Convert decimal string to hex string with dots
+        std::string decStr = ss.str();
+        ss.str("");
+        ss.clear();
+
+        std::string hexStr = stringToHex(decStr);
+    
+        // Output the version string for verification
+        std::cout << "Hardware Version: " << hexStr << std::endl;
+        return hexStr;
+
     } else {
         std::cerr << "Firmware data is too small to extract last 4 bytes" << std::endl;
         return "0.0.0.0";
     }
-
-    // Output the version string for verification
-    std::cout << "Hardware Version: " << ss.str() << std::endl;
-
-    return ss.str();
 }
 
 // Function to send NMT restart command
@@ -355,6 +378,7 @@ void sendNMTRestart(int socket, int id) {
     // Wait for a short time to allow the device to restart
     usleep(2000000);  // Wait for 1 second
 }
+
 
 void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
     // Send NMT restart command first
