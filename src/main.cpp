@@ -395,7 +395,7 @@ std::string readHardwareVersion(int socket, int id) {
         }
 
         // Check if response is valid (should start with 0x43)
-        if (response.data[0] != 0x43) {
+        if (response.data[0] != 0x4f) {
             std::cerr << "Invalid response format for byte " << i << std::endl;
             return "0.0.0.0";
         }
@@ -453,6 +453,14 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
     // Read hardware version before upgrade
     std::string hwVersion = readHardwareVersion(socket, id);
     std::cout << "Current Hardware Version: " << hwVersion << std::endl;
+    
+    // Compare hardware versions
+    if (hwVersion != hardwareVersion) {
+        std::cerr << "Hardware version mismatch!" << std::endl;
+        std::cerr << "Current version: " << hwVersion << std::endl;
+        std::cerr << "Firmware version: " << hardwareVersion << std::endl;
+        return;
+    }
 
     struct can_frame blockDownloadInitResponse;
     ret = sdoBlockDownloadInit(socket, dataSize, id, blockDownloadInitResponse);
