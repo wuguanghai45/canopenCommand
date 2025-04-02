@@ -108,8 +108,8 @@ int createCanSocket(const char* canInterface, int id) {
 }
 
 // Function to change node ID
-bool changeNodeId(int oldId, int newId) {
-    int socket = createCanSocket(argv[1], oldId);
+bool changeNodeId(int oldId, int newId, const char* canInterface) {
+    int socket = createCanSocket(canInterface, oldId);
     if (socket < 0) {
         std::cerr << "Failed to create CAN socket" << std::endl;
         return false;
@@ -500,7 +500,7 @@ std::string readHardwareVersion(int socket, int id) {
     return ss.str();
 }
 
-void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
+void upgradeMotorFirmware(int socket, const char* firmwarePath, int id, const char* canInterface) {
     // Send NMT restart command first
     sendNMTRestart(socket, id);
     
@@ -572,9 +572,9 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
     }
     std::cout << "sdoBlockDownloadEnd done" << std::endl;
 
-    sleep(3);
     // Change node ID
-    changeNodeId(126, id);
+    sleep(3);
+    changeNodeId(126, id, canInterface);
 }
 
 int main(int argc, char **argv) {
@@ -599,7 +599,8 @@ int main(int argc, char **argv) {
     }
 
     // Upgrade motor firmware
-    upgradeMotorFirmware(s, argv[3], id);
+    upgradeMotorFirmware(s, argv[3], id, argv[1]);
+
 
     // Close socket
     close(s);
