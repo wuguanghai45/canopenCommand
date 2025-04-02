@@ -451,7 +451,7 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
     sleep(3);  // Sleep for 2 seconds
 
     // Read hardware version before upgrade
-    std::string hwVersion = readHardwareVersion(s, id);
+    std::string hwVersion = readHardwareVersion(socket, id);
     std::cout << "Current Hardware Version: " << hwVersion << std::endl;
 
     struct can_frame blockDownloadInitResponse;
