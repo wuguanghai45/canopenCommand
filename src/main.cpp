@@ -11,6 +11,7 @@
 #include <sys/time.h> // For struct timeval
 #include <cstdint>
 #include <iomanip> // For std::setw and std::setfill
+#include <sstream>
 
 // Define the CRC table
 uint16_t crctable[256] = {
@@ -308,23 +309,32 @@ std::vector<uint8_t> loadFirmwareData(const char* firmwarePath) {
 }
 
 // Function to get the last 4 bytes of firmware data as hardware version
-std::vector<uint8_t> getHardwareVersion(const uint8_t* firmwareDataPtr, size_t dataSize) {
-    std::vector<uint8_t> hardwareVersion(4);
+std::string getHardwareVersion(const uint8_t* firmwareDataPtr, size_t dataSize) {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
 
     if (dataSize >= 4) {
-        std::copy(firmwareDataPtr + dataSize - 4, firmwareDataPtr + dataSize, hardwareVersion.begin());
+        // Get last 4 bytes in reverse order and convert to decimal
+        uint32_t version = 0;
+        for (int i = 0; i < 4; i++) {
+            version |= (static_cast<uint32_t>(firmwareDataPtr[dataSize - 1 - i]) << (i * 8));
+        }
+        
+        // Convert decimal to hexadecimal and format with dots
+        for (int i = 0; i < 4; i++) {
+            uint8_t byte = (version >> (i * 8)) & 0xFF;
+            ss << std::setw(2) << static_cast<int>(byte);
+            if (i < 3) ss << ".";
+        }
     } else {
         std::cerr << "Firmware data is too small to extract last 4 bytes" << std::endl;
+        return "0.0.0.0";
     }
 
-    // Output the last 4 bytes for verification
-    std::cout << "Last 4 bytes of firmware data: ";
-    for (uint8_t byte : hardwareVersion) {
-        std::cout << std::hex << static_cast<int>(byte) << " ";
-    }
-    std::cout << std::endl;
+    // Output the version string for verification
+    std::cout << "Hardware Version: " << ss.str() << std::endl;
 
-    return hardwareVersion;
+    return ss.str();
 }
 
 // Function to send NMT restart command
@@ -363,18 +373,14 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id) {
     // Calculate CRC16 for the firmware data
     uint16_t crcValue = crc16(firmwareDataPtr, dataSize);
     // Get the hardware version from the firmware data
-    std::vector<uint8_t> hardwareVersion = getHardwareVersion(firmwareDataPtr, dataSize);
+    std::string hardwareVersion = getHardwareVersion(firmwareDataPtr, dataSize);
 
+    std::cout << "Hardware Version: " << hardwareVersion << std::endl;
     // Print totalSegmentCount and lastSegmentSize
     std::cout << "dataSize: " << dataSize << std::endl;
     std::cout << "Firmware CRC16: 0x" << std::hex << crcValue << std::endl;
     std::cout << "Total Segment Count: " << totalSegmentCount << std::endl;
     std::cout << "Last Segment Size: " << lastSegmentSize << std::endl;
-    std::cout << "Hardware Version: ";
-    for (uint8_t byte : hardwareVersion) {
-        std::cout << std::hex << static_cast<int>(byte) << " ";
-    }
-    std::cout << std::endl;
 
     // Example invalid length value
     int invalidLength = 7 - lastSegmentSize; // Set this to the desired value
