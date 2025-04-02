@@ -118,15 +118,6 @@ bool sendESDO(int socket, int id) {
         return false;
     }
 
-    // Check if response indicates success (0x60)
-    if (response.data[0] != 0x60) {
-        std::cerr << "Unexpected response code: 0x" 
-                  << std::hex 
-                  << static_cast<int>(response.data[0]) 
-                  << std::endl;
-        return false;
-    }
-
     std::cout << "ESDO command sent successfully" << std::endl;
     return true;
 }
