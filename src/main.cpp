@@ -226,6 +226,11 @@ void sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
 
         // Verify response format (A2 XX XX 00 00 00 00 00)
         if (response.data[0] != 0xA2) {
+            std::cout << "Response data: ";
+            for (int i = 0; i < 8; i++) {
+                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(response.data[i]) << " ";
+            }
+            std::cout << std::dec << std::endl;
             std::cerr << "Invalid response command specifier currentSegment: " << currentSegment << " segmentsInBlock: " << segmentsInBlock << std::endl;
             // return;
         }
