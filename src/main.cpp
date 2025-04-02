@@ -174,13 +174,11 @@ bool changeNodeId(int oldId, int newId, const char* canInterface) {
     
     if (!sendSDOWithTimeout(socket, data, 8, oldId, response)) {
         std::cerr << "Failed to write new ID" << std::endl;
-        return false;
     }
     
     // Check response
     if (response.data[0] != 0x60) {
         std::cerr << "Unexpected response when writing new ID" << std::endl;
-        return false;
     }
     
     // Step 2: Write save command to 0x1010 subindex 3
@@ -191,16 +189,17 @@ bool changeNodeId(int oldId, int newId, const char* canInterface) {
     
     if (!sendSDOWithTimeout(socket, saveData, 8, oldId, response)) {
         std::cerr << "Failed to write save command" << std::endl;
-        return false;
     }
     
     // Check response
     if (response.data[0] != 0x60) {
         std::cerr << "Unexpected response when writing save command" << std::endl;
-        return false;
     }
     
     std::cout << "Node ID changed successfully from " << oldId << " to " << newId << std::endl;
+    
+    sendNMTRestart(socket, oldId);
+
     return true;
 }
 
@@ -574,6 +573,7 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id, const ch
     // Change node ID
     sleep(3);
     changeNodeId(126, id, canInterface);
+
 }
 
 int main(int argc, char **argv) {
