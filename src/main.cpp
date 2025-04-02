@@ -60,6 +60,54 @@ std::string stringToHex(const std::string& str) {
     return ss.str();
 }
 
+// Function to send SDO with timeout handling
+bool sendSDOWithTimeout(int socket, const uint8_t* data, size_t dataSize, int id, struct can_frame &response) {
+    struct can_frame frame;
+
+    frame.can_id = id + 0x600; // Convert id to can_id
+    frame.can_dlc = 8;
+
+    // Copy data into the CAN frame
+    std::memcpy(frame.data, data, std::min(dataSize, size_t(8)));
+
+    if (write(socket, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame)) {
+        std::cerr << "Error in sending SDO" << std::endl;
+        return false;
+    }
+
+    // Set up the timeout
+    struct timeval timeout;
+    timeout.tv_sec = 2; // 2 seconds timeout
+    timeout.tv_usec = 0;
+
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(socket, &readfds);
+
+    // Wait for response with timeout
+    int ret = select(socket + 1, &readfds, NULL, NULL, &timeout);
+    if (ret == -1) {
+        std::cerr << "Error in select" << std::endl;
+        return false;
+    } else if (ret == 0) {
+        std::cerr << "Timeout waiting for response" << std::endl;
+        return false;
+    } else {
+        int nbytes = read(socket, &response, sizeof(struct can_frame));
+        if (nbytes < 0) {
+            std::cerr << "Error in receiving response" << std::endl;
+            return false;
+        } else {
+            std::cout << "Received response with ID: " << std::hex << response.can_id << std::endl;
+            std::cout << "Response data: ";
+            for (int i = 0; i < response.can_dlc; ++i) {
+                std::cout << std::hex << static_cast<int>(response.data[i]) << " ";
+            }
+            std::cout << std::endl;
+            return true;
+        }
+    }
+}
 
 // Function to create and configure CAN socket
 int createCanSocket(const char* canInterface, int id) {
@@ -154,55 +202,6 @@ bool changeNodeId(int oldId, int newId, const char* canInterface) {
     
     std::cout << "Node ID changed successfully from " << oldId << " to " << newId << std::endl;
     return true;
-}
-
-// Function to send SDO with timeout handling
-bool sendSDOWithTimeout(int socket, const uint8_t* data, size_t dataSize, int id, struct can_frame &response) {
-    struct can_frame frame;
-
-    frame.can_id = id + 0x600; // Convert id to can_id
-    frame.can_dlc = 8;
-
-    // Copy data into the CAN frame
-    std::memcpy(frame.data, data, std::min(dataSize, size_t(8)));
-
-    if (write(socket, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame)) {
-        std::cerr << "Error in sending SDO" << std::endl;
-        return false;
-    }
-
-    // Set up the timeout
-    struct timeval timeout;
-    timeout.tv_sec = 2; // 2 seconds timeout
-    timeout.tv_usec = 0;
-
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(socket, &readfds);
-
-    // Wait for response with timeout
-    int ret = select(socket + 1, &readfds, NULL, NULL, &timeout);
-    if (ret == -1) {
-        std::cerr << "Error in select" << std::endl;
-        return false;
-    } else if (ret == 0) {
-        std::cerr << "Timeout waiting for response" << std::endl;
-        return false;
-    } else {
-        int nbytes = read(socket, &response, sizeof(struct can_frame));
-        if (nbytes < 0) {
-            std::cerr << "Error in receiving response" << std::endl;
-            return false;
-        } else {
-            std::cout << "Received response with ID: " << std::hex << response.can_id << std::endl;
-            std::cout << "Response data: ";
-            for (int i = 0; i < response.can_dlc; ++i) {
-                std::cout << std::hex << static_cast<int>(response.data[i]) << " ";
-            }
-            std::cout << std::endl;
-            return true;
-        }
-    }
 }
 
 // Function to send ESDO command to trigger upgrade
