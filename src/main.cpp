@@ -404,6 +404,19 @@ int main(int argc, char **argv) {
         return -2;
     }
 
+    // Set up CAN filter to only receive messages with specific IDs
+    struct can_filter rfilter[2];
+    rfilter[0].can_id = (id + 0x500) + 0x80;  // Response ID
+    rfilter[0].can_mask = CAN_SFF_MASK;        // Standard frame mask
+    rfilter[1].can_id = id + 0x600;            // Request ID
+    rfilter[1].can_mask = CAN_SFF_MASK;        // Standard frame mask
+
+    if (setsockopt(s, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
+        std::cerr << "Error setting CAN filter" << std::endl;
+        close(s);
+        return -3;
+    }
+
     // Upgrade motor firmware
     upgradeMotorFirmware(s, argv[3], id);
 
