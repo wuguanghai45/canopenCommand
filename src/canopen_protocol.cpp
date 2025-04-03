@@ -23,15 +23,7 @@ bool CanopenProtocol::sendSDO(int nodeId, const std::vector<uint8_t>& data, std:
         return false;
     }
 
-    // 接收响应
-    uint32_t id;
-    if (!canInterface_.receiveFrame(id, response, timeout_ms)) {
-        return false;
-    }
-
-    // 检查响应 ID
-    if (id != (nodeId + 0x580)) {
-        std::cerr << "Unexpected response ID: 0x" << std::hex << id << std::endl;
+    if (!canInterface_.receiveFrame(nodeId, response, timeout_ms)) {
         return false;
     }
 
@@ -91,10 +83,8 @@ bool CanopenProtocol::sendDataBlocks(int nodeId, const std::vector<uint8_t>& dat
             }
         }
 
-        // 等待块响应
-        uint32_t id;
         std::vector<uint8_t> response;
-        if (!canInterface_.receiveFrame(id, response, 2000)) {
+        if (!canInterface_.receiveFrame(nodeId, response, 2000)) {
             std::cerr << "Timeout waiting for response at segment " << currentSegment << std::endl;
             return false;
         }

@@ -78,7 +78,7 @@ bool CanInterface::sendFrame(uint32_t id, const std::vector<uint8_t>& data) {
     return true;
 }
 
-bool CanInterface::receiveFrame(uint32_t& id, std::vector<uint8_t>& data, int timeout_ms) {
+bool CanInterface::receiveFrame(uint32_t id, std::vector<uint8_t>& data, int timeout_ms) {
     if (socket_ < 0) {
         std::cerr << "Socket not open" << std::endl;
         return false;
