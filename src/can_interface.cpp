@@ -84,6 +84,16 @@ bool CanInterface::receiveFrame(uint32_t& id, std::vector<uint8_t>& data, int ti
         return false;
     }
 
+    // Set up CAN filter to only receive response messages
+    struct can_filter filter;
+    filter.can_id = (id + 0x500) + 0x80;  // Response ID
+    filter.can_mask = CAN_SFF_MASK;        // Standard frame mask
+
+    if (setsockopt(socket_, SOL_CAN_RAW, CAN_RAW_FILTER, &filter, sizeof(filter)) < 0) {
+        std::cerr << "Error setting CAN filter" << std::endl;
+        return false;
+    }
+
     // 设置超时
     struct timeval timeout;
     timeout.tv_sec = timeout_ms / 1000;
@@ -111,8 +121,6 @@ bool CanInterface::receiveFrame(uint32_t& id, std::vector<uint8_t>& data, int ti
         return false;
     }
 
-    // 提取 ID 和数据
-    id = frame.can_id;
     data.clear();
     for (int i = 0; i < frame.can_dlc; ++i) {
         data.push_back(frame.data[i]);
