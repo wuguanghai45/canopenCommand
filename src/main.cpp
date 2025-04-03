@@ -642,8 +642,24 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         return false;
     }
 
+    std::cout << "Extracted decimal version string: '" << decVersion << "'" << std::endl;
+
     // Convert decimal string to hex string with dots
     try {
+        // Remove any non-digit characters except decimal point
+        decVersion.erase(std::remove_if(decVersion.begin(), decVersion.end(),
+            [](char c) { return !std::isdigit(c) && c != '.'; }), decVersion.end());
+        
+        std::cout << "Cleaned decimal version string: '" << decVersion << "'" << std::endl;
+        
+        // If the string contains a decimal point, convert to integer first
+        size_t dotPos = decVersion.find('.');
+        if (dotPos != std::string::npos) {
+            decVersion = decVersion.substr(0, dotPos);
+        }
+        
+        std::cout << "Final decimal version string: '" << decVersion << "'" << std::endl;
+        
         uint32_t version = std::stoul(decVersion);
         std::stringstream ss;
         ss << std::hex << std::setfill('0');
@@ -655,8 +671,10 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         ss << std::setw(2) << (version & 0x000000FF);
         
         hardwareVersion = ss.str();
+        std::cout << "Converted hex version: '" << hardwareVersion << "'" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Error converting hardware version to hex: " << e.what() << std::endl;
+        std::cerr << "Input string was: '" << decVersion << "'" << std::endl;
         return false;
     }
     
