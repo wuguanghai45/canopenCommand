@@ -2,7 +2,7 @@
 CXX = g++
 
 # Compiler flags
-CXXFLAGS = -Wall -std=c++11
+CXXFLAGS = -Wall -std=c++11 -std=gnu++11
 
 # Target executable
 TARGET = canopen_cli

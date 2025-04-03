@@ -12,6 +12,9 @@
 #include <cstdint>
 #include <iomanip> // For std::setw and std::setfill
 #include <sstream>
+#include <map>
+#include <regex>
+#include <algorithm>
 
 // Define the CRC table
 uint16_t crctable[256] = {
@@ -78,6 +81,7 @@ void sendNMTRestart(int socket, int id) {
     // Wait for a short time to allow the device to restart
     usleep(2000000);  // Wait for 1 second
 }
+
 // Function to send SDO with timeout handling
 bool sendSDOWithTimeout(int socket, const uint8_t* data, size_t dataSize, int id, struct can_frame &response) {
     struct can_frame frame;
@@ -593,17 +597,173 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id, const ch
     }
 }
 
+// Structure to hold configuration parameter
+struct ConfigParam {
+    std::string name;
+    uint16_t index;
+    uint8_t subindex;
+    uint8_t length;
+    bool valid;
+    uint64_t value;
+    std::string comment;
+};
+
+// Function to parse cfg file
+bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::string& hardwareVersion) {
+    std::ifstream file(cfgPath);
+    if (!file) {
+        std::cerr << "Error opening cfg file: " << cfgPath << std::endl;
+        return false;
+    }
+
+    // Read first line to get hardware version
+    std::string firstLine;
+    std::getline(file, firstLine);
+    
+    // Extract hardware version using regex
+    std::regex hwVersionRegex("hardware version= ([0-9]+)");
+    std::smatch match;
+    if (std::regex_search(firstLine, match, hwVersionRegex) && match.size() > 1) {
+        hardwareVersion = match[1].str();
+    } else {
+        std::cerr << "Could not extract hardware version from first line" << std::endl;
+        return false;
+    }
+    
+    // Skip header lines
+    std::string line;
+    for (int i = 0; i < 3; i++) {
+        std::getline(file, line);
+    }
+    
+    // Parse parameters
+    while (std::getline(file, line)) {
+        // Skip empty lines
+        if (line.empty()) continue;
+        
+        // Parse the line
+        std::istringstream iss(line);
+        ConfigParam param;
+        
+        // Extract name (first column)
+        iss >> param.name;
+        if (param.name.empty()) continue;
+        
+        // Extract index (second column)
+        std::string indexStr;
+        iss >> indexStr;
+        param.index = std::stoul(indexStr, nullptr, 16);
+        
+        // Extract subindex (third column)
+        std::string subindexStr;
+        iss >> subindexStr;
+        param.subindex = std::stoul(subindexStr, nullptr, 16);
+        
+        // Extract length (fourth column)
+        std::string lengthStr;
+        iss >> lengthStr;
+        param.length = std::stoul(lengthStr);
+        
+        // Extract valid (fifth column)
+        std::string validStr;
+        iss >> validStr;
+        param.valid = (validStr == "True");
+        
+        // Extract value (sixth column)
+        std::string valueStr;
+        iss >> valueStr;
+        param.value = std::stoull(valueStr);
+        
+        // Extract comment (remaining part of the line)
+        std::getline(iss, param.comment);
+        // Trim leading whitespace
+        param.comment = param.comment.substr(param.comment.find_first_not_of(" \t"));
+        
+        params.push_back(param);
+    }
+    
+    return true;
+}
+
+// Function to write SDO command
+bool writeSDO(int socket, int id, uint16_t index, uint8_t subindex, uint8_t length, uint64_t value) {
+    struct can_frame response;
+    uint8_t data[8] = {0};
+    
+    // Set command specifier based on length
+    switch (length) {
+        case 1:
+            data[0] = 0x2F;
+            break;
+        case 2:
+            data[0] = 0x2B;
+            break;
+        case 4:
+            data[0] = 0x23;
+            break;
+        default:
+            std::cerr << "Unsupported length: " << static_cast<int>(length) << std::endl;
+            return false;
+    }
+    
+    // Set index and subindex
+    data[1] = subindex;
+    data[2] = index & 0xFF;
+    data[3] = (index >> 8) & 0xFF;
+    
+    // Set value based on length
+    for (int i = 0; i < length; i++) {
+        data[4 + i] = (value >> (i * 8)) & 0xFF;
+    }
+    
+    return sendSDOWithTimeout(socket, data, 8, id, response);
+}
+
+// Function to apply configuration from cfg file
+bool applyConfiguration(int socket, int id, const std::vector<ConfigParam>& params) {
+    bool success = true;
+    
+    for (const auto& param : params) {
+        if (!param.valid) {
+            std::cout << "Skipping " << param.name << " (valid=False)" << std::endl;
+            continue;
+        }
+        
+        std::cout << "Writing " << param.name << " (0x" << std::hex << param.index 
+                  << ":" << static_cast<int>(param.subindex) << ") = " 
+                  << std::dec << param.value << std::endl;
+        
+        if (!writeSDO(socket, id, param.index, param.subindex, param.length, param.value)) {
+            std::cerr << "Failed to write " << param.name << std::endl;
+            success = false;
+        }
+    }
+    
+    return success;
+}
+
+// Function to save configuration
+bool saveConfiguration(int socket, int id) {
+    struct can_frame response;
+    uint8_t data[8] = {0x23, 0x10, 0x10, 0x03, 0x73, 0x61, 0x76, 0x65}; // "save" in ASCII
+    
+    return sendSDOWithTimeout(socket, data, 8, id, response);
+}
+
 int main(int argc, char **argv) {
     // Check for help option
     if (argc > 1 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
         std::cout << "Usage: " << argv[0] << " <can_interface> <id> <data_file>" << std::endl;
         std::cout << "   or: " << argv[0] << " --change-node-id <can_interface> <old_id> <new_id>" << std::endl;
+        std::cout << "   or: " << argv[0] << " --apply-cfg <can_interface> <id> <cfg_file>" << std::endl;
         std::cout << "Options:" << std::endl;
         std::cout << "  --help, -h           Show this help message" << std::endl;
         std::cout << "  --change-node-id     Command to only change the node ID" << std::endl;
+        std::cout << "  --apply-cfg          Apply configuration from cfg file" << std::endl;
         std::cout << "Examples:" << std::endl;
         std::cout << "  " << argv[0] << " can0 1 firmware.bin              # Upgrade firmware for node ID 1" << std::endl;
         std::cout << "  " << argv[0] << " --change-node-id can0 1 2        # Change node ID from 1 to 2" << std::endl;
+        std::cout << "  " << argv[0] << " --apply-cfg can0 1 config.cfg    # Apply configuration from cfg file" << std::endl;
         return 0;
     }
 
@@ -628,10 +788,77 @@ int main(int argc, char **argv) {
         }
         return 0;
     }
+    
+    // Check if we're using the apply-cfg command
+    if (argc > 1 && strcmp(argv[1], "--apply-cfg") == 0) {
+        if (argc != 5) {
+            std::cerr << "Usage: " << argv[0] << " --apply-cfg <can_interface> <id> <cfg_file>" << std::endl;
+            std::cerr << "Use --help for more information" << std::endl;
+            return -1;
+        }
+        
+        const char* canInterface = argv[2];
+        int id = std::stoi(argv[3]);
+        const char* cfgPath = argv[4];
+        
+        // Parse cfg file
+        std::vector<ConfigParam> params;
+        std::string hardwareVersion;
+        if (!parseCfgFile(cfgPath, params, hardwareVersion)) {
+            std::cerr << "Failed to parse cfg file" << std::endl;
+            return -1;
+        }
+        
+        // Create and configure CAN socket
+        int s = createCanSocket(canInterface, id);
+        if (s < 0) {
+            return -1;
+        }
+        
+        // Read hardware version from device
+        std::string deviceHwVersion = readHardwareVersion(s, id);
+        std::cout << "Device Hardware Version: " << deviceHwVersion << std::endl;
+        std::cout << "Cfg Hardware Version: " << hardwareVersion << std::endl;
+        
+        // Compare hardware versions
+        if (deviceHwVersion != hardwareVersion) {
+            std::cerr << "Hardware version mismatch!" << std::endl;
+            std::cerr << "Device version: " << deviceHwVersion << std::endl;
+            std::cerr << "Cfg version: " << hardwareVersion << std::endl;
+            close(s);
+            return -1;
+        }
+        
+        // Apply configuration
+        std::cout << "Applying configuration..." << std::endl;
+        if (!applyConfiguration(s, id, params)) {
+            std::cerr << "Failed to apply configuration" << std::endl;
+            close(s);
+            return -1;
+        }
+        
+        // Save configuration
+        std::cout << "Saving configuration..." << std::endl;
+        if (!saveConfiguration(s, id)) {
+            std::cerr << "Failed to save configuration" << std::endl;
+            close(s);
+            return -1;
+        }
+        
+        // Send NMT restart command
+        std::cout << "Restarting device..." << std::endl;
+        sendNMTRestart(s, id);
+        
+        // Close socket
+        close(s);
+        std::cout << "Configuration applied successfully" << std::endl;
+        return 0;
+    }
 
     if (argc != 4) {
         std::cerr << "Usage: " << argv[0] << " <can_interface> <id> <data_file>" << std::endl;
         std::cerr << "   or: " << argv[0] << " --change-node-id <can_interface> <old_id> <new_id>" << std::endl;
+        std::cerr << "   or: " << argv[0] << " --apply-cfg <can_interface> <id> <cfg_file>" << std::endl;
         std::cerr << "Use --help for more information" << std::endl;
         return -1;
     }
