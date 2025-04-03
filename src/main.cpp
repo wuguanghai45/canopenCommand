@@ -632,13 +632,31 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
     }
     
     // Extract and trim hardware version
-    hardwareVersion = firstLine.substr(hwPos, hwEnd - hwPos);
+    std::string decVersion = firstLine.substr(hwPos, hwEnd - hwPos);
     // Trim whitespace
-    hardwareVersion.erase(0, hardwareVersion.find_first_not_of(" \t"));
-    hardwareVersion.erase(hardwareVersion.find_last_not_of(" \t") + 1);
+    decVersion.erase(0, decVersion.find_first_not_of(" \t"));
+    decVersion.erase(decVersion.find_last_not_of(" \t") + 1);
     
-    if (hardwareVersion.empty()) {
+    if (decVersion.empty()) {
         std::cerr << "Could not extract hardware version from first line" << std::endl;
+        return false;
+    }
+
+    // Convert decimal string to hex string with dots
+    try {
+        uint32_t version = std::stoul(decVersion);
+        std::stringstream ss;
+        ss << std::hex << std::setfill('0');
+        
+        // Extract each byte and format with dots
+        ss << std::setw(2) << ((version & 0xFF000000) >> 24) << ".";
+        ss << std::setw(2) << ((version & 0x00FF0000) >> 16) << ".";
+        ss << std::setw(2) << ((version & 0x0000FF00) >> 8) << ".";
+        ss << std::setw(2) << (version & 0x000000FF);
+        
+        hardwareVersion = ss.str();
+    } catch (const std::exception& e) {
+        std::cerr << "Error converting hardware version to hex: " << e.what() << std::endl;
         return false;
     }
     
