@@ -85,15 +85,15 @@ bool CanInterface::receiveFrame(uint32_t id, std::vector<uint8_t>& data, int tim
     }
 
     // Set up CAN filter to only receive response messages
-    struct can_filter filter;
-    filter.can_id = 0x580;  // Base COB-ID for CANopen response messages
-    filter.can_mask = 0x780;  // Mask to match 0x580 + nodeId (0-127)
+    struct can_filter rfilter[2];
+    rfilter[0].can_id = (id + 0x500) + 0x80;  // Response ID
+    rfilter[0].can_mask = CAN_SFF_MASK;        // Standard frame mask
+    rfilter[1].can_id = id + 0x600;            // Request ID
+    rfilter[1].can_mask = CAN_SFF_MASK;        // Standard frame mask
 
-    std::cout << "Setting CAN filter - ID: 0x" << std::hex << filter.can_id 
-              << ", Mask: 0x" << filter.can_mask << std::dec << std::endl;
-
-    if (setsockopt(socket_, SOL_CAN_RAW, CAN_RAW_FILTER, &filter, sizeof(filter)) < 0) {
+    if (setsockopt(socket_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
         std::cerr << "Error setting CAN filter" << std::endl;
+        close();
         return false;
     }
 
