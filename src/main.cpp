@@ -275,6 +275,9 @@ bool sdoBlockDownloadInit(int socket, size_t byteCount, int id, struct can_frame
     };
     bool ret;
     ret = sendSDOWithTimeout(socket, data, 8, id, response);
+    if (!ret) {
+        return false;
+    }
 
     if (response.data[0] == 0x80) {  // SDO abort code
         std::cerr << "SDO block download initiate failed with abort code: 0x" 
@@ -507,7 +510,6 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id, const ch
     const uint8_t* firmwareDataPtr = firmwareData.data();
 
     // Calculate total segment count and the last segment size
-    int totalSegmentCount = (dataSize + 6) / 7; // Equivalent to ceil(dataSize / 7.0)
     int lastSegmentSize = dataSize % 7 == 0 ? 7 : dataSize % 7;
     // Calculate CRC16 for the firmware data
     uint16_t crcValue = crc16(firmwareDataPtr, dataSize);
