@@ -670,27 +670,47 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         // Parse the line
         ConfigParam param;
         
-        // Extract index (second column)
-        std::string indexStr = fields[1];
-        param.index = std::stoul(indexStr, nullptr, 16);
-        
-        // Extract subindex (third column)
-        std::string subindexStr = fields[2];
-        param.subindex = std::stoul(subindexStr, nullptr, 16);
-        
-        // Extract length (fourth column)
-        std::string lengthStr = fields[3];
-        param.length = std::stoul(lengthStr);
-        
-        // Skip valid (fifth column)
-        std::string validStr = fields[4];
-        if (validStr != "True") continue;
-        
-        // Extract value (sixth column)
-        std::string valueStr = fields[5];
-        param.value = std::stoull(valueStr);
-        
-        params.push_back(param);
+        try {
+            // Extract and trim index (second column)
+            std::string indexStr = fields[1];
+            indexStr.erase(0, indexStr.find_first_not_of(" \t"));
+            indexStr.erase(indexStr.find_last_not_of(" \t") + 1);
+            if (indexStr.empty()) continue;
+            param.index = std::stoul(indexStr, nullptr, 16);
+            
+            // Extract and trim subindex (third column)
+            std::string subindexStr = fields[2];
+            subindexStr.erase(0, subindexStr.find_first_not_of(" \t"));
+            subindexStr.erase(subindexStr.find_last_not_of(" \t") + 1);
+            if (subindexStr.empty()) continue;
+            param.subindex = std::stoul(subindexStr, nullptr, 16);
+            
+            // Extract and trim length (fourth column)
+            std::string lengthStr = fields[3];
+            lengthStr.erase(0, lengthStr.find_first_not_of(" \t"));
+            lengthStr.erase(lengthStr.find_last_not_of(" \t") + 1);
+            if (lengthStr.empty()) continue;
+            param.length = std::stoul(lengthStr);
+            
+            // Extract and trim valid (fifth column)
+            std::string validStr = fields[4];
+            validStr.erase(0, validStr.find_first_not_of(" \t"));
+            validStr.erase(validStr.find_last_not_of(" \t") + 1);
+            if (validStr != "True") continue;
+            
+            // Extract and trim value (sixth column)
+            std::string valueStr = fields[5];
+            valueStr.erase(0, valueStr.find_first_not_of(" \t"));
+            valueStr.erase(valueStr.find_last_not_of(" \t") + 1);
+            if (valueStr.empty()) continue;
+            param.value = std::stoull(valueStr);
+            
+            params.push_back(param);
+        } catch (const std::exception& e) {
+            std::cerr << "Error parsing line: " << line << std::endl;
+            std::cerr << "Error: " << e.what() << std::endl;
+            continue;
+        }
     }
     
     return true;
