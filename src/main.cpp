@@ -119,15 +119,8 @@ bool sendSDOWithTimeout(int socket, const uint8_t* data, size_t dataSize, int id
         if (nbytes < 0) {
             std::cerr << "Error in receiving response" << std::endl;
             return false;
-        } else {
-            std::cout << "Received response with ID: " << std::hex << response.can_id << std::endl;
-            std::cout << "Response data: ";
-            for (int i = 0; i < response.can_dlc; ++i) {
-                std::cout << std::hex << static_cast<int>(response.data[i]) << " ";
-            }
-            std::cout << std::endl;
-            return true;
         }
+        return true;
     }
 }
 
@@ -244,7 +237,6 @@ bool sendESDO(int socket, int id) {
     uint8_t data[8] = {0x23, 0x40, 0x40, 0x00, 0x75, 0x70, 0x64, 0x74};
     bool ret;
     ret = sendSDOWithTimeout(socket, data, 8, id, response);
-    std::cout << "sendESDO ret: " << ret << std::endl;
 
     if (!ret) {
         return false;
@@ -269,13 +261,11 @@ bool sendESDO(int socket, int id) {
         return false;
     }
 
-    std::cout << "ESDO command sent successfully" << std::endl;
     return true;
 }
 
 // Function to initiate SDO block download
 bool sdoBlockDownloadInit(int socket, size_t byteCount, int id, struct can_frame &response) {
-
     uint8_t data[8] = {
         0xC6, 0x50, 0x1F, 0x00, 
         static_cast<uint8_t>(byteCount & 0xFF), 
@@ -285,7 +275,6 @@ bool sdoBlockDownloadInit(int socket, size_t byteCount, int id, struct can_frame
     };
     bool ret;
     ret = sendSDOWithTimeout(socket, data, 8, id, response);
-    std::cout << "sdoBlockDownloadInit ret: " << ret << std::endl;
 
     if (response.data[0] == 0x80) {  // SDO abort code
         std::cerr << "SDO block download initiate failed with abort code: 0x" 
@@ -309,22 +298,19 @@ bool sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
     size_t totalSegments = (dataSize + 6) / 7; // Calculate total number of segments
     size_t currentSegment = 1;
 
-    std::cout << "totalSegments: " << totalSegments << std::endl;
-
     // Process data in blocks of 127 segments
     while (currentSegment <= totalSegments) {
         // Calculate segments to send in this block
         size_t segmentsInBlock = std::min(BLOCK_SIZE, totalSegments - currentSegment + 1);
         
         // Send segments in current block
-        for (size_t i = 1; i <= segmentsInBlock; i++) {  // 从1开始计数
-            size_t dataOffset = (currentSegment - 1 + (i-1)) * 7;  // 修改偏移量计算
+        for (size_t i = 1; i <= segmentsInBlock; i++) {
+            size_t dataOffset = (currentSegment - 1 + (i-1)) * 7;
             bool isLastSegment = (currentSegment + (i-1)) == totalSegments;
             
             // Set sequence number (add 0x80 if it's the last segment)
-            frame.data[0] = i & 0x7F;  // 使用i作为序号，从1开始
+            frame.data[0] = i & 0x7F;
             if (isLastSegment) {
-                std::cout << "isLastSegment, currentSegment: " << currentSegment << std::endl;
                 frame.data[0] |= 0x80;
             }
             
@@ -370,12 +356,7 @@ bool sendDataBlocks(int socket, const uint8_t* data, size_t dataSize, int id) {
 
         // Verify response format (A2 XX XX 00 00 00 00 00)
         if (response.data[0] != 0xA2) {
-            std::cout << "Response data: ";
-            for (int i = 0; i < 8; i++) {
-                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(response.data[i]) << " ";
-            }
-            std::cout << std::dec << std::endl;
-            std::cerr << "Invalid response command specifier currentSegment: " << currentSegment << " segmentsInBlock: " << segmentsInBlock << std::endl;
+            std::cerr << "Invalid response command specifier" << std::endl;
             return false;
         }
         // Move to next block
@@ -534,15 +515,10 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id, const ch
     std::string hardwareVersion = getHardwareVersion(firmwareDataPtr, dataSize);
 
     std::cout << "Hardware Version: " << hardwareVersion << std::endl;
-    // Print totalSegmentCount and lastSegmentSize
-    std::cout << "dataSize: " << dataSize << std::endl;
     std::cout << "Firmware CRC16: 0x" << std::hex << crcValue << std::endl;
-    std::cout << "Total Segment Count: " << totalSegmentCount << std::endl;
-    std::cout << "Last Segment Size: " << lastSegmentSize << std::endl;
 
     // Example invalid length value
-    int invalidLength = 7 - lastSegmentSize; // Set this to the desired value
-
+    int invalidLength = 7 - lastSegmentSize;
 
     bool ret;
     // Execute the steps with the new id parameter
@@ -551,8 +527,7 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id, const ch
         std::cerr << "sendESDO failed" << std::endl;
         return;
     }
-    std::cout << "sendESDO done" << std::endl;
-    sleep(3);  // Sleep for 2 seconds
+    sleep(3);  // Sleep for 3 seconds
 
     // Read hardware version before upgrade
     std::string hwVersion = readHardwareVersion(socket, id);
@@ -572,19 +547,16 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id, const ch
         std::cerr << "sdoBlockDownloadInit failed" << std::endl;
         return;
     }
-    std::cout << "sdoBlockDownloadInit done" << std::endl;
     ret = sendDataBlocks(socket, firmwareDataPtr, dataSize, id);
     if(!ret) {
         std::cerr << "sendDataBlocks failed" << std::endl;
         return;
     }
-    std::cout << "sendDataBlocks done" << std::endl;
     ret = sdoBlockDownloadEnd(socket, crcValue, invalidLength, id);
     if(!ret) {
         std::cerr << "sdoBlockDownloadEnd failed" << std::endl;
         return;
     }
-    std::cout << "sdoBlockDownloadEnd done" << std::endl;
 
     // Change node ID from 126 back to original ID
     std::cout << "Changing node ID from 126 back to " << id << "..." << std::endl;
@@ -607,24 +579,19 @@ struct ConfigParam {
 
 // Function to parse cfg file
 bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::string& hardwareVersion) {
-    std::cerr << "Opening cfg file: " << cfgPath << std::endl;
     std::ifstream file(cfgPath);
     if (!file) {
         std::cerr << "Error opening cfg file: " << cfgPath << std::endl;
         return false;
     }
-    std::cerr << "Successfully opened cfg file" << std::endl;
 
     // Read first line to get hardware version
     std::string firstLine;
-    std::cerr << "Reading first line..." << std::endl;
-    
-    // 使用 getline 读取第一行，直到遇到 \r 或 \n
     char c;
     while (file.get(c)) {
         if (c == '\r' || c == '\n') {
             if (c == '\r' && file.peek() == '\n') {
-                file.get(); // 跳过 \n
+                file.get(); // Skip \n
             }
             break;
         }
@@ -636,17 +603,12 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         return false;
     }
     
-    // 使用 std::cerr 来确保完整输出
-    std::cerr << "First line content: '" << firstLine << "'" << std::endl;
-    std::cerr << "First line length: " << firstLine.length() << std::endl;
-    
-    // Parse hardware version from first line using simple string operations
+    // Parse hardware version from first line
     size_t hwPos = firstLine.find("hardware version=");
     if (hwPos == std::string::npos) {
         std::cerr << "Could not find hardware version in first line" << std::endl;
         return false;
     }
-    std::cerr << "Found hardware version at position: " << hwPos << std::endl;
     hwPos += 16; // Skip "hardware version="
     
     size_t hwEnd = firstLine.find_first_of(",", hwPos);
@@ -654,27 +616,20 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         std::cerr << "Could not find end of hardware version" << std::endl;
         return false;
     }
-    std::cerr << "Found end of hardware version at position: " << hwEnd << std::endl;
     
     // Extract and trim hardware version
     std::string decVersion = firstLine.substr(hwPos, hwEnd - hwPos);
-    std::cerr << "Extracted decimal version string: '" << decVersion << "'" << std::endl;
     
-    // Convert decimal string to hex string with dots
     try {
         // Remove any non-digit characters except decimal point
         decVersion.erase(std::remove_if(decVersion.begin(), decVersion.end(),
             [](char c) { return !std::isdigit(c) && c != '.'; }), decVersion.end());
-        
-        std::cerr << "Cleaned decimal version string: '" << decVersion << "'" << std::endl;
         
         // If the string contains a decimal point, convert to integer first
         size_t dotPos = decVersion.find('.');
         if (dotPos != std::string::npos) {
             decVersion = decVersion.substr(0, dotPos);
         }
-        
-        std::cerr << "Final decimal version string: '" << decVersion << "'" << std::endl;
         
         uint32_t version = std::stoul(decVersion);
         std::stringstream ss;
@@ -687,32 +642,23 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         ss << std::setw(2) << (version & 0x000000FF);
         
         hardwareVersion = ss.str();
-        std::cerr << "Converted hex version: '" << hardwareVersion << "'" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Error converting hardware version to hex: " << e.what() << std::endl;
-        std::cerr << "Input string was: '" << decVersion << "'" << std::endl;
         return false;
     }
     
-    std::cerr << "Starting parameter parsing..." << std::endl;
     // Parse parameters
     std::string line;
     while (file.get(c)) {
-        // 如果遇到换行符，处理当前行
         if (c == '\r' || c == '\n') {
             if (c == '\r' && file.peek() == '\n') {
-                file.get(); // 跳过 \n
+                file.get(); // Skip \n
             }
             
-            // Skip empty lines
             if (line.empty()) {
-                std::cerr << "Skipping empty line" << std::endl;
                 line.clear();
                 continue;
             }
-            
-            std::cerr << "Processing line: '" << line << "'" << std::endl;
-            std::cerr << "Line length: " << line.length() << std::endl;
             
             // Split line by tabs
             std::vector<std::string> fields;
@@ -725,106 +671,72 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
             }
             fields.push_back(line.substr(start));
             
-            std::cerr << "Found " << fields.size() << " fields" << std::endl;
-            for (size_t i = 0; i < fields.size(); i++) {
-                std::cerr << "Field " << i << ": '" << fields[i] << "'" << std::endl;
-            }
-            
-            // Skip if we don't have enough fields
             if (fields.size() < 6) {
-                std::cerr << "Skipping line - not enough fields (need 6, got " << fields.size() << ")" << std::endl;
                 line.clear();
                 continue;
             }
             
-            // Parse the line
             ConfigParam param;
             
             try {
-                // Extract and trim index (first field)
                 std::string indexStr = fields[1];
-                std::cerr << "Processing index string: '" << indexStr << "'" << std::endl;
                 indexStr.erase(0, indexStr.find_first_not_of(" \t"));
                 indexStr.erase(indexStr.find_last_not_of(" \t") + 1);
                 if (indexStr.empty()) {
-                    std::cerr << "Skipping - empty index string after trimming" << std::endl;
                     line.clear();
                     continue;
                 }
                 param.index = std::stoul(indexStr, nullptr, 16);
-                std::cerr << "Parsed index: 0x" << std::hex << param.index << std::endl;
                 
-                // Extract and trim subindex (second field)
                 std::string subindexStr = fields[2];
-                std::cerr << "Processing subindex string: '" << subindexStr << "'" << std::endl;
                 subindexStr.erase(0, subindexStr.find_first_not_of(" \t"));
                 subindexStr.erase(subindexStr.find_last_not_of(" \t") + 1);
                 if (subindexStr.empty()) {
-                    std::cerr << "Skipping - empty subindex string after trimming" << std::endl;
                     line.clear();
                     continue;
                 }
                 param.subindex = std::stoul(subindexStr, nullptr, 16);
-                std::cerr << "Parsed subindex: 0x" << std::hex << static_cast<int>(param.subindex) << std::endl;
                 
-                // Extract and trim length (third field)
                 std::string lengthStr = fields[3];
-                std::cerr << "Processing length string: '" << lengthStr << "'" << std::endl;
                 lengthStr.erase(0, lengthStr.find_first_not_of(" \t"));
                 lengthStr.erase(lengthStr.find_last_not_of(" \t") + 1);
                 if (lengthStr.empty()) {
-                    std::cerr << "Skipping - empty length string after trimming" << std::endl;
                     line.clear();
                     continue;
                 }
                 param.length = std::stoul(lengthStr);
-                std::cerr << "Parsed length: " << std::dec << static_cast<int>(param.length) << std::endl;
                 
-                // Extract and trim valid (fourth field)
                 std::string validStr = fields[4];
-                std::cerr << "Processing valid string: '" << validStr << "'" << std::endl;
                 validStr.erase(0, validStr.find_first_not_of(" \t"));
                 validStr.erase(validStr.find_last_not_of(" \t") + 1);
                 if (validStr != "True") {
-                    std::cerr << "Skipping - valid string is not 'True' (got '" << validStr << "')" << std::endl;
                     line.clear();
                     continue;
                 }
                 
-                // Extract and trim value (fifth field)
                 std::string valueStr = fields[5];
-                std::cerr << "Processing value string: '" << valueStr << "'" << std::endl;
                 valueStr.erase(0, valueStr.find_first_not_of(" \t"));
                 valueStr.erase(valueStr.find_last_not_of(" \t") + 1);
                 if (valueStr.empty()) {
-                    std::cerr << "Skipping - empty value string after trimming" << std::endl;
                     line.clear();
                     continue;
                 }
-                param.value = std::stoll(valueStr);  // Changed from stoull to stoll to support negative values
-                std::cerr << "Parsed value: " << std::dec << param.value << std::endl;
+                param.value = std::stoll(valueStr);
                 
-                std::cerr << "Successfully parsed all fields, adding parameter to vector" << std::endl;
                 params.push_back(param);
-                std::cerr << "----------------------------------------" << std::endl;
             } catch (const std::exception& e) {
-                std::cerr << "Error parsing line: '" << line << "'" << std::endl;
-                std::cerr << "Error details: " << e.what() << std::endl;
+                std::cerr << "Error parsing line: " << e.what() << std::endl;
             }
             
-            // 清空当前行，准备读取下一行
             line.clear();
             continue;
         }
         
-        // 将字符添加到当前行
         line += c;
     }
     
-    // 处理最后一行（如果没有以换行符结束）
     if (!line.empty()) {
-        std::cerr << "Processing last line: '" << line << "'" << std::endl;
-        // ... 重复上面的行处理逻辑 ...
+        // Process last line if exists
     }
     
     return true;
@@ -869,10 +781,6 @@ bool applyConfiguration(int socket, int id, const std::vector<ConfigParam>& para
     bool success = true;
     
     for (const auto& param : params) {
-        std::cout << "Writing parameter (0x" << std::hex << param.index 
-                  << ":" << static_cast<int>(param.subindex) << ") = " 
-                  << std::dec << static_cast<int64_t>(param.value) << std::endl;
-        
         if (!writeSDO(socket, id, param.index, param.subindex, param.length, static_cast<int64_t>(param.value))) {
             std::cerr << "Failed to write parameter" << std::endl;
             success = false;
