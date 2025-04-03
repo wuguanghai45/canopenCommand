@@ -741,6 +741,14 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
             if (valueStr.empty()) continue;
             param.value = std::stoull(valueStr);
             
+            // Print parsed values
+            std::cout << "Successfully parsed parameter:" << std::endl;
+            std::cout << "  Index: 0x" << std::hex << param.index << std::endl;
+            std::cout << "  Subindex: 0x" << std::hex << static_cast<int>(param.subindex) << std::endl;
+            std::cout << "  Length: " << std::dec << static_cast<int>(param.length) << std::endl;
+            std::cout << "  Value: " << std::dec << param.value << std::endl;
+            std::cout << "----------------------------------------" << std::endl;
+            
             params.push_back(param);
         } catch (const std::exception& e) {
             std::cerr << "Error parsing line: " << line << std::endl;
