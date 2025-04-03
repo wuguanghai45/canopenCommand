@@ -182,6 +182,7 @@ bool changeNodeId(int oldId, int newId, const char* canInterface) {
     }
 
     struct can_frame response;
+    bool success = true;
     
     // Step 1: Write new ID to 0x2001 subindex 1
     uint8_t data[8] = {
@@ -192,11 +193,13 @@ bool changeNodeId(int oldId, int newId, const char* canInterface) {
     
     if (!sendSDOWithTimeout(socket, data, 8, oldId, response)) {
         std::cerr << "Failed to write new ID" << std::endl;
+        success = false;
     }
     
     // Check response
     if (response.data[0] != 0x60) {
         std::cerr << "Unexpected response when writing new ID" << std::endl;
+        success = false;
     }
     
     // Step 2: Write save command to 0x1010 subindex 3
@@ -207,18 +210,28 @@ bool changeNodeId(int oldId, int newId, const char* canInterface) {
     
     if (!sendSDOWithTimeout(socket, saveData, 8, oldId, response)) {
         std::cerr << "Failed to write save command" << std::endl;
+        success = false;
     }
     
     // Check response
     if (response.data[0] != 0x60) {
         std::cerr << "Unexpected response when writing save command" << std::endl;
+        success = false;
     }
     
-    std::cout << "Node ID changed successfully from " << oldId << " to " << newId << std::endl;
+    if (success) {
+        std::cout << "Node ID changed successfully from " << oldId << " to " << newId << std::endl;
+        
+        // Send NMT restart command to apply the new ID
+        sendNMTRestart(socket, oldId);
+    } else {
+        std::cerr << "Failed to change node ID" << std::endl;
+    }
     
-    sendNMTRestart(socket, oldId);
-
-    return true;
+    // Close the socket
+    close(socket);
+    
+    return success;
 }
 
 // Function to send ESDO command to trigger upgrade
@@ -569,15 +582,57 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id, const ch
     }
     std::cout << "sdoBlockDownloadEnd done" << std::endl;
 
-    // Change node ID
-    sleep(3);
-    changeNodeId(126, id, canInterface);
-
+    // Change node ID from 126 back to original ID
+    std::cout << "Changing node ID from 126 back to " << id << "..." << std::endl;
+    sleep(3);  // Wait for the device to stabilize
+    if (!changeNodeId(126, id, canInterface)) {
+        std::cerr << "Failed to change node ID from 126 back to " << id << std::endl;
+        std::cerr << "Please try to change the node ID manually using the --change-node-id command" << std::endl;
+    } else {
+        std::cout << "Node ID changed successfully from 126 back to " << id << std::endl;
+    }
 }
 
 int main(int argc, char **argv) {
-    if (argc < 4) {
+    // Check for help option
+    if (argc > 1 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
+        std::cout << "Usage: " << argv[0] << " <can_interface> <id> <data_file>" << std::endl;
+        std::cout << "   or: " << argv[0] << " --change-node-id <can_interface> <old_id> <new_id>" << std::endl;
+        std::cout << "Options:" << std::endl;
+        std::cout << "  --help, -h           Show this help message" << std::endl;
+        std::cout << "  --change-node-id     Command to only change the node ID" << std::endl;
+        std::cout << "Examples:" << std::endl;
+        std::cout << "  " << argv[0] << " can0 1 firmware.bin              # Upgrade firmware for node ID 1" << std::endl;
+        std::cout << "  " << argv[0] << " --change-node-id can0 1 2        # Change node ID from 1 to 2" << std::endl;
+        return 0;
+    }
+
+    // Check if we're using the change-node-id command
+    if (argc > 1 && strcmp(argv[1], "--change-node-id") == 0) {
+        if (argc != 5) {
+            std::cerr << "Usage: " << argv[0] << " --change-node-id <can_interface> <old_id> <new_id>" << std::endl;
+            std::cerr << "Use --help for more information" << std::endl;
+            return -1;
+        }
+        
+        const char* canInterface = argv[2];
+        int oldId = std::stoi(argv[3]);
+        int newId = std::stoi(argv[4]);
+        
+        std::cout << "Changing node ID from " << oldId << " to " << newId << "..." << std::endl;
+        if (changeNodeId(oldId, newId, canInterface)) {
+            std::cout << "Node ID changed successfully" << std::endl;
+        } else {
+            std::cerr << "Failed to change node ID" << std::endl;
+            return -1;
+        }
+        return 0;
+    }
+
+    if (argc != 4) {
         std::cerr << "Usage: " << argv[0] << " <can_interface> <id> <data_file>" << std::endl;
+        std::cerr << "   or: " << argv[0] << " --change-node-id <can_interface> <old_id> <new_id>" << std::endl;
+        std::cerr << "Use --help for more information" << std::endl;
         return -1;
     }
 
@@ -598,7 +653,6 @@ int main(int argc, char **argv) {
 
     // Upgrade motor firmware
     upgradeMotorFirmware(s, argv[3], id, argv[1]);
-
 
     // Close socket
     close(s);
