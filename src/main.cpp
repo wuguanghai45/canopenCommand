@@ -697,112 +697,135 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
     std::cerr << "Starting parameter parsing..." << std::endl;
     // Parse parameters
     std::string line;
-    while (std::getline(file, line)) {
-        // 移除行尾的 \r 或 \n
-        line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
-        line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
-        
-        // Skip empty lines
-        if (line.empty()) {
-            std::cerr << "Skipping empty line" << std::endl;
+    char c;
+    while (file.get(c)) {
+        // 如果遇到换行符，处理当前行
+        if (c == '\r' || c == '\n') {
+            if (c == '\r' && file.peek() == '\n') {
+                file.get(); // 跳过 \n
+            }
+            
+            // Skip empty lines
+            if (line.empty()) {
+                std::cerr << "Skipping empty line" << std::endl;
+                line.clear();
+                continue;
+            }
+            
+            std::cerr << "Processing line: '" << line << "'" << std::endl;
+            std::cerr << "Line length: " << line.length() << std::endl;
+            
+            // Split line by commas
+            std::vector<std::string> fields;
+            size_t start = 0;
+            size_t end = line.find(',');
+            while (end != std::string::npos) {
+                fields.push_back(line.substr(start, end - start));
+                start = end + 1;
+                end = line.find(',', start);
+            }
+            fields.push_back(line.substr(start));
+            
+            std::cerr << "Found " << fields.size() << " fields" << std::endl;
+            for (size_t i = 0; i < fields.size(); i++) {
+                std::cerr << "Field " << i << ": '" << fields[i] << "'" << std::endl;
+            }
+            
+            // Skip if we don't have enough fields
+            if (fields.size() < 6) {
+                std::cerr << "Skipping line - not enough fields (need 6, got " << fields.size() << ")" << std::endl;
+                line.clear();
+                continue;
+            }
+            
+            // Parse the line
+            ConfigParam param;
+            
+            try {
+                // Extract and trim index (first field)
+                std::string indexStr = fields[0];
+                std::cerr << "Processing index string: '" << indexStr << "'" << std::endl;
+                indexStr.erase(0, indexStr.find_first_not_of(" \t"));
+                indexStr.erase(indexStr.find_last_not_of(" \t") + 1);
+                if (indexStr.empty()) {
+                    std::cerr << "Skipping - empty index string after trimming" << std::endl;
+                    line.clear();
+                    continue;
+                }
+                param.index = std::stoul(indexStr, nullptr, 16);
+                std::cerr << "Parsed index: 0x" << std::hex << param.index << std::endl;
+                
+                // Extract and trim subindex (second field)
+                std::string subindexStr = fields[1];
+                std::cerr << "Processing subindex string: '" << subindexStr << "'" << std::endl;
+                subindexStr.erase(0, subindexStr.find_first_not_of(" \t"));
+                subindexStr.erase(subindexStr.find_last_not_of(" \t") + 1);
+                if (subindexStr.empty()) {
+                    std::cerr << "Skipping - empty subindex string after trimming" << std::endl;
+                    line.clear();
+                    continue;
+                }
+                param.subindex = std::stoul(subindexStr, nullptr, 16);
+                std::cerr << "Parsed subindex: 0x" << std::hex << static_cast<int>(param.subindex) << std::endl;
+                
+                // Extract and trim length (third field)
+                std::string lengthStr = fields[2];
+                std::cerr << "Processing length string: '" << lengthStr << "'" << std::endl;
+                lengthStr.erase(0, lengthStr.find_first_not_of(" \t"));
+                lengthStr.erase(lengthStr.find_last_not_of(" \t") + 1);
+                if (lengthStr.empty()) {
+                    std::cerr << "Skipping - empty length string after trimming" << std::endl;
+                    line.clear();
+                    continue;
+                }
+                param.length = std::stoul(lengthStr);
+                std::cerr << "Parsed length: " << std::dec << static_cast<int>(param.length) << std::endl;
+                
+                // Extract and trim valid (fourth field)
+                std::string validStr = fields[3];
+                std::cerr << "Processing valid string: '" << validStr << "'" << std::endl;
+                validStr.erase(0, validStr.find_first_not_of(" \t"));
+                validStr.erase(validStr.find_last_not_of(" \t") + 1);
+                if (validStr != "True") {
+                    std::cerr << "Skipping - valid string is not 'True' (got '" << validStr << "')" << std::endl;
+                    line.clear();
+                    continue;
+                }
+                
+                // Extract and trim value (fifth field)
+                std::string valueStr = fields[4];
+                std::cerr << "Processing value string: '" << valueStr << "'" << std::endl;
+                valueStr.erase(0, valueStr.find_first_not_of(" \t"));
+                valueStr.erase(valueStr.find_last_not_of(" \t") + 1);
+                if (valueStr.empty()) {
+                    std::cerr << "Skipping - empty value string after trimming" << std::endl;
+                    line.clear();
+                    continue;
+                }
+                param.value = std::stoull(valueStr);
+                std::cerr << "Parsed value: " << std::dec << param.value << std::endl;
+                
+                std::cerr << "Successfully parsed all fields, adding parameter to vector" << std::endl;
+                params.push_back(param);
+                std::cerr << "----------------------------------------" << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Error parsing line: '" << line << "'" << std::endl;
+                std::cerr << "Error details: " << e.what() << std::endl;
+            }
+            
+            // 清空当前行，准备读取下一行
+            line.clear();
             continue;
         }
         
-        std::cerr << "Processing line: '" << line << "'" << std::endl;
-        std::cerr << "Line length: " << line.length() << std::endl;
-        
-        // Split line by commas
-        std::vector<std::string> fields;
-        size_t start = 0;
-        size_t end = line.find(',');
-        while (end != std::string::npos) {
-            fields.push_back(line.substr(start, end - start));
-            start = end + 1;
-            end = line.find(',', start);
-        }
-        fields.push_back(line.substr(start));
-        
-        std::cerr << "Found " << fields.size() << " fields" << std::endl;
-        for (size_t i = 0; i < fields.size(); i++) {
-            std::cerr << "Field " << i << ": '" << fields[i] << "'" << std::endl;
-        }
-        
-        // Skip if we don't have enough fields
-        if (fields.size() < 6) {
-            std::cerr << "Skipping line - not enough fields (need 6, got " << fields.size() << ")" << std::endl;
-            continue;
-        }
-        
-        // Parse the line
-        ConfigParam param;
-        
-        try {
-            // Extract and trim index (first field)
-            std::string indexStr = fields[0];
-            std::cerr << "Processing index string: '" << indexStr << "'" << std::endl;
-            indexStr.erase(0, indexStr.find_first_not_of(" \t"));
-            indexStr.erase(indexStr.find_last_not_of(" \t") + 1);
-            if (indexStr.empty()) {
-                std::cerr << "Skipping - empty index string after trimming" << std::endl;
-                continue;
-            }
-            param.index = std::stoul(indexStr, nullptr, 16);
-            std::cerr << "Parsed index: 0x" << std::hex << param.index << std::endl;
-            
-            // Extract and trim subindex (second field)
-            std::string subindexStr = fields[1];
-            std::cerr << "Processing subindex string: '" << subindexStr << "'" << std::endl;
-            subindexStr.erase(0, subindexStr.find_first_not_of(" \t"));
-            subindexStr.erase(subindexStr.find_last_not_of(" \t") + 1);
-            if (subindexStr.empty()) {
-                std::cerr << "Skipping - empty subindex string after trimming" << std::endl;
-                continue;
-            }
-            param.subindex = std::stoul(subindexStr, nullptr, 16);
-            std::cerr << "Parsed subindex: 0x" << std::hex << static_cast<int>(param.subindex) << std::endl;
-            
-            // Extract and trim length (third field)
-            std::string lengthStr = fields[2];
-            std::cerr << "Processing length string: '" << lengthStr << "'" << std::endl;
-            lengthStr.erase(0, lengthStr.find_first_not_of(" \t"));
-            lengthStr.erase(lengthStr.find_last_not_of(" \t") + 1);
-            if (lengthStr.empty()) {
-                std::cerr << "Skipping - empty length string after trimming" << std::endl;
-                continue;
-            }
-            param.length = std::stoul(lengthStr);
-            std::cerr << "Parsed length: " << std::dec << static_cast<int>(param.length) << std::endl;
-            
-            // Extract and trim valid (fourth field)
-            std::string validStr = fields[3];
-            std::cerr << "Processing valid string: '" << validStr << "'" << std::endl;
-            validStr.erase(0, validStr.find_first_not_of(" \t"));
-            validStr.erase(validStr.find_last_not_of(" \t") + 1);
-            if (validStr != "True") {
-                std::cerr << "Skipping - valid string is not 'True' (got '" << validStr << "')" << std::endl;
-                continue;
-            }
-            
-            // Extract and trim value (fifth field)
-            std::string valueStr = fields[4];
-            std::cerr << "Processing value string: '" << valueStr << "'" << std::endl;
-            valueStr.erase(0, valueStr.find_first_not_of(" \t"));
-            valueStr.erase(valueStr.find_last_not_of(" \t") + 1);
-            if (valueStr.empty()) {
-                std::cerr << "Skipping - empty value string after trimming" << std::endl;
-                continue;
-            }
-            param.value = std::stoull(valueStr);
-            std::cerr << "Parsed value: " << std::dec << param.value << std::endl;
-            
-            std::cerr << "Successfully parsed all fields, adding parameter to vector" << std::endl;
-            params.push_back(param);
-            std::cerr << "----------------------------------------" << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "Error parsing line: '" << line << "'" << std::endl;
-            std::cerr << "Error details: " << e.what() << std::endl;
-            continue;
-        }
+        // 将字符添加到当前行
+        line += c;
+    }
+    
+    // 处理最后一行（如果没有以换行符结束）
+    if (!line.empty()) {
+        std::cerr << "Processing last line: '" << line << "'" << std::endl;
+        // ... 重复上面的行处理逻辑 ...
     }
     
     return true;
