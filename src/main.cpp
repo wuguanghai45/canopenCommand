@@ -607,18 +607,31 @@ struct ConfigParam {
 
 // Function to parse cfg file
 bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::string& hardwareVersion) {
-    std::cout << "Opening cfg file: " << cfgPath << std::endl;
+    std::cerr << "Opening cfg file: " << cfgPath << std::endl;
     std::ifstream file(cfgPath);
     if (!file) {
         std::cerr << "Error opening cfg file: " << cfgPath << std::endl;
         return false;
     }
-    std::cout << "Successfully opened cfg file" << std::endl;
+    std::cerr << "Successfully opened cfg file" << std::endl;
 
     // Read first line to get hardware version
     std::string firstLine;
-    std::cout << "Reading first line..." << std::endl;
-    if (!std::getline(file, firstLine, '\n')) {
+    std::cerr << "Reading first line..." << std::endl;
+    
+    // 使用 getline 读取第一行，直到遇到 \r 或 \n
+    char c;
+    while (file.get(c)) {
+        if (c == '\r' || c == '\n') {
+            if (c == '\r' && file.peek() == '\n') {
+                file.get(); // 跳过 \n
+            }
+            break;
+        }
+        firstLine += c;
+    }
+    
+    if (firstLine.empty()) {
         std::cerr << "Failed to read first line" << std::endl;
         return false;
     }
@@ -684,7 +697,11 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
     std::cerr << "Starting parameter parsing..." << std::endl;
     // Parse parameters
     std::string line;
-    while (std::getline(file, line, '\n')) {
+    while (std::getline(file, line)) {
+        // 移除行尾的 \r 或 \n
+        line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+        line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+        
         // Skip empty lines
         if (line.empty()) {
             std::cerr << "Skipping empty line" << std::endl;
