@@ -697,7 +697,6 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
     std::cerr << "Starting parameter parsing..." << std::endl;
     // Parse parameters
     std::string line;
-    char c;
     while (file.get(c)) {
         // 如果遇到换行符，处理当前行
         if (c == '\r' || c == '\n') {
