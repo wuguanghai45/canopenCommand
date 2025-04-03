@@ -618,7 +618,10 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
     // Read first line to get hardware version
     std::string firstLine;
     std::cout << "Reading first line..." << std::endl;
-    std::getline(file, firstLine);
+    if (!std::getline(file, firstLine, '\n')) {
+        std::cerr << "Failed to read first line" << std::endl;
+        return false;
+    }
     std::cout << "First line content: '" << firstLine << "'" << std::endl;
     
     // Parse hardware version from first line using simple string operations
@@ -675,40 +678,10 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         return false;
     }
     
-    // Skip header lines until we find the header row
-    std::string line;
-    bool foundHeader = false;
-    while (std::getline(file, line)) {
-        // Skip empty lines
-        if (line.empty()) {
-            std::cout << "Skipping empty line" << std::endl;
-            continue;
-        }
-        
-        std::cout << "Checking line for header: '" << line << "'" << std::endl;
-        
-        // Check if this line contains all required column names
-        if (line.find("NAME") != std::string::npos && 
-            line.find("INDEX") != std::string::npos && 
-            line.find("SUB") != std::string::npos && 
-            line.find("LEN") != std::string::npos && 
-            line.find("VALID") != std::string::npos && 
-            line.find("VALUE") != std::string::npos) {
-            foundHeader = true;
-            std::cout << "Found header row: '" << line << "'" << std::endl;
-            break;
-        }
-        std::cout << "Skipping header line: '" << line << "'" << std::endl;
-    }
-    
-    if (!foundHeader) {
-        std::cerr << "Could not find header row in file" << std::endl;
-        return false;
-    }
-    
     std::cout << "Starting parameter parsing..." << std::endl;
     // Parse parameters
-    while (std::getline(file, line)) {
+    std::string line;
+    while (std::getline(file, line, '\n')) {
         // Skip empty lines
         if (line.empty()) {
             std::cout << "Skipping empty line" << std::endl;
@@ -717,14 +690,14 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         
         std::cout << "Processing line: '" << line << "'" << std::endl;
         
-        // Split line by tabs
+        // Split line by commas
         std::vector<std::string> fields;
         size_t start = 0;
-        size_t end = line.find('\t');
+        size_t end = line.find(',');
         while (end != std::string::npos) {
             fields.push_back(line.substr(start, end - start));
             start = end + 1;
-            end = line.find('\t', start);
+            end = line.find(',', start);
         }
         fields.push_back(line.substr(start));
         
@@ -743,8 +716,8 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         ConfigParam param;
         
         try {
-            // Extract and trim index (second column)
-            std::string indexStr = fields[1];
+            // Extract and trim index (first field)
+            std::string indexStr = fields[0];
             std::cout << "Processing index string: '" << indexStr << "'" << std::endl;
             indexStr.erase(0, indexStr.find_first_not_of(" \t"));
             indexStr.erase(indexStr.find_last_not_of(" \t") + 1);
@@ -755,8 +728,8 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
             param.index = std::stoul(indexStr, nullptr, 16);
             std::cout << "Parsed index: 0x" << std::hex << param.index << std::endl;
             
-            // Extract and trim subindex (third column)
-            std::string subindexStr = fields[2];
+            // Extract and trim subindex (second field)
+            std::string subindexStr = fields[1];
             std::cout << "Processing subindex string: '" << subindexStr << "'" << std::endl;
             subindexStr.erase(0, subindexStr.find_first_not_of(" \t"));
             subindexStr.erase(subindexStr.find_last_not_of(" \t") + 1);
@@ -767,8 +740,8 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
             param.subindex = std::stoul(subindexStr, nullptr, 16);
             std::cout << "Parsed subindex: 0x" << std::hex << static_cast<int>(param.subindex) << std::endl;
             
-            // Extract and trim length (fourth column)
-            std::string lengthStr = fields[3];
+            // Extract and trim length (third field)
+            std::string lengthStr = fields[2];
             std::cout << "Processing length string: '" << lengthStr << "'" << std::endl;
             lengthStr.erase(0, lengthStr.find_first_not_of(" \t"));
             lengthStr.erase(lengthStr.find_last_not_of(" \t") + 1);
@@ -779,8 +752,8 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
             param.length = std::stoul(lengthStr);
             std::cout << "Parsed length: " << std::dec << static_cast<int>(param.length) << std::endl;
             
-            // Extract and trim valid (fifth column)
-            std::string validStr = fields[4];
+            // Extract and trim valid (fourth field)
+            std::string validStr = fields[3];
             std::cout << "Processing valid string: '" << validStr << "'" << std::endl;
             validStr.erase(0, validStr.find_first_not_of(" \t"));
             validStr.erase(validStr.find_last_not_of(" \t") + 1);
@@ -789,8 +762,8 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
                 continue;
             }
             
-            // Extract and trim value (sixth column)
-            std::string valueStr = fields[5];
+            // Extract and trim value (fifth field)
+            std::string valueStr = fields[4];
             std::cout << "Processing value string: '" << valueStr << "'" << std::endl;
             valueStr.erase(0, valueStr.find_first_not_of(" \t"));
             valueStr.erase(valueStr.find_last_not_of(" \t") + 1);
