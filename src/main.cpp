@@ -602,7 +602,7 @@ struct ConfigParam {
     uint16_t index;
     uint8_t subindex;
     uint8_t length;
-    uint64_t value;
+    int64_t value;  // Changed from uint64_t to int64_t to support negative values
 };
 
 // Function to parse cfg file
@@ -801,7 +801,7 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
                     line.clear();
                     continue;
                 }
-                param.value = std::stoull(valueStr);
+                param.value = std::stoll(valueStr);  // Changed from stoull to stoll to support negative values
                 std::cerr << "Parsed value: " << std::dec << param.value << std::endl;
                 
                 std::cerr << "Successfully parsed all fields, adding parameter to vector" << std::endl;
@@ -831,7 +831,7 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
 }
 
 // Function to write SDO command
-bool writeSDO(int socket, int id, uint16_t index, uint8_t subindex, uint8_t length, uint64_t value) {
+bool writeSDO(int socket, int id, uint16_t index, uint8_t subindex, uint8_t length, int64_t value) {
     struct can_frame response;
     uint8_t data[8] = {0};
     
@@ -852,9 +852,9 @@ bool writeSDO(int socket, int id, uint16_t index, uint8_t subindex, uint8_t leng
     }
     
     // Set index and subindex
-    data[1] = subindex;
-    data[2] = index & 0xFF;
-    data[3] = (index >> 8) & 0xFF;
+    data[1] = index & 0xFF;
+    data[2] = (index >> 8) & 0xFF;
+    data[3] = subindex;
     
     // Set value based on length
     for (int i = 0; i < length; i++) {
@@ -871,9 +871,9 @@ bool applyConfiguration(int socket, int id, const std::vector<ConfigParam>& para
     for (const auto& param : params) {
         std::cout << "Writing parameter (0x" << std::hex << param.index 
                   << ":" << static_cast<int>(param.subindex) << ") = " 
-                  << std::dec << param.value << std::endl;
+                  << std::dec << static_cast<int64_t>(param.value) << std::endl;
         
-        if (!writeSDO(socket, id, param.index, param.subindex, param.length, param.value)) {
+        if (!writeSDO(socket, id, param.index, param.subindex, param.length, static_cast<int64_t>(param.value))) {
             std::cerr << "Failed to write parameter" << std::endl;
             success = false;
         }
