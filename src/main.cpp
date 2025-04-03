@@ -714,14 +714,14 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
             std::cerr << "Processing line: '" << line << "'" << std::endl;
             std::cerr << "Line length: " << line.length() << std::endl;
             
-            // Split line by commas
+            // Split line by tabs
             std::vector<std::string> fields;
             size_t start = 0;
-            size_t end = line.find(',');
+            size_t end = line.find('\t');
             while (end != std::string::npos) {
                 fields.push_back(line.substr(start, end - start));
                 start = end + 1;
-                end = line.find(',', start);
+                end = line.find('\t', start);
             }
             fields.push_back(line.substr(start));
             
