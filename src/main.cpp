@@ -652,17 +652,32 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         // Extract index (second column)
         std::string indexStr;
         iss >> indexStr;
-        param.index = std::stoul(indexStr, nullptr, 16);
+        try {
+            param.index = std::stoul(indexStr, nullptr, 16);
+        } catch (const std::exception& e) {
+            std::cerr << "Error parsing index: " << indexStr << " for parameter " << param.name << std::endl;
+            continue;
+        }
         
         // Extract subindex (third column)
         std::string subindexStr;
         iss >> subindexStr;
-        param.subindex = std::stoul(subindexStr, nullptr, 16);
+        try {
+            param.subindex = std::stoul(subindexStr, nullptr, 16);
+        } catch (const std::exception& e) {
+            std::cerr << "Error parsing subindex: " << subindexStr << " for parameter " << param.name << std::endl;
+            continue;
+        }
         
         // Extract length (fourth column)
         std::string lengthStr;
         iss >> lengthStr;
-        param.length = std::stoul(lengthStr);
+        try {
+            param.length = std::stoul(lengthStr);
+        } catch (const std::exception& e) {
+            std::cerr << "Error parsing length: " << lengthStr << " for parameter " << param.name << std::endl;
+            continue;
+        }
         
         // Extract valid (fifth column)
         std::string validStr;
@@ -672,16 +687,42 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         // Extract value (sixth column)
         std::string valueStr;
         iss >> valueStr;
-        param.value = std::stoull(valueStr);
+        try {
+            // Check if the value is negative
+            bool isNegative = false;
+            if (!valueStr.empty() && valueStr[0] == '-') {
+                isNegative = true;
+                valueStr = valueStr.substr(1); // Remove the minus sign
+            }
+            
+            // Parse the value
+            param.value = std::stoull(valueStr);
+            
+            // If it was negative, make the value negative
+            if (isNegative) {
+                param.value = -param.value;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error parsing value: " << valueStr << " for parameter " << param.name << std::endl;
+            continue;
+        }
         
         // Extract comment (remaining part of the line)
         std::getline(iss, param.comment);
         // Trim leading whitespace
         param.comment = param.comment.substr(param.comment.find_first_not_of(" \t"));
         
+        // Print the parsed parameter for debugging
+        std::cout << "Parsed parameter: " << param.name 
+                  << " (0x" << std::hex << param.index 
+                  << ":" << static_cast<int>(param.subindex) 
+                  << ") = " << std::dec << param.value 
+                  << " (valid=" << (param.valid ? "True" : "False") << ")" << std::endl;
+        
         params.push_back(param);
     }
     
+    std::cout << "Total parameters parsed: " << params.size() << std::endl;
     return true;
 }
 
@@ -716,6 +757,13 @@ bool writeSDO(int socket, int id, uint16_t index, uint8_t subindex, uint8_t leng
         data[4 + i] = (value >> (i * 8)) & 0xFF;
     }
     
+    // Print the SDO command for debugging
+    std::cout << "SDO command: ";
+    for (int i = 0; i < 8; i++) {
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(data[i]) << " ";
+    }
+    std::cout << std::dec << std::endl;
+    
     return sendSDOWithTimeout(socket, data, 8, id, response);
 }
 
@@ -748,6 +796,18 @@ bool saveConfiguration(int socket, int id) {
     uint8_t data[8] = {0x23, 0x10, 0x10, 0x03, 0x73, 0x61, 0x76, 0x65}; // "save" in ASCII
     
     return sendSDOWithTimeout(socket, data, 8, id, response);
+}
+
+// Function to normalize hardware version string
+std::string normalizeHardwareVersion(const std::string& version) {
+    // Remove any non-digit characters
+    std::string normalized;
+    for (char c : version) {
+        if (std::isdigit(c)) {
+            normalized += c;
+        }
+    }
+    return normalized;
 }
 
 int main(int argc, char **argv) {
@@ -820,11 +880,14 @@ int main(int argc, char **argv) {
         std::cout << "Device Hardware Version: " << deviceHwVersion << std::endl;
         std::cout << "Cfg Hardware Version: " << hardwareVersion << std::endl;
         
-        // Compare hardware versions
-        if (deviceHwVersion != hardwareVersion) {
+        // Compare hardware versions (normalized)
+        std::string normalizedDeviceHwVersion = normalizeHardwareVersion(deviceHwVersion);
+        std::string normalizedCfgHwVersion = normalizeHardwareVersion(hardwareVersion);
+        
+        if (normalizedDeviceHwVersion != normalizedCfgHwVersion) {
             std::cerr << "Hardware version mismatch!" << std::endl;
-            std::cerr << "Device version: " << deviceHwVersion << std::endl;
-            std::cerr << "Cfg version: " << hardwareVersion << std::endl;
+            std::cerr << "Device version: " << deviceHwVersion << " (normalized: " << normalizedDeviceHwVersion << ")" << std::endl;
+            std::cerr << "Cfg version: " << hardwareVersion << " (normalized: " << normalizedCfgHwVersion << ")" << std::endl;
             close(s);
             return -1;
         }
