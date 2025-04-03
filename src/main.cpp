@@ -742,7 +742,7 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
             
             try {
                 // Extract and trim index (first field)
-                std::string indexStr = fields[0];
+                std::string indexStr = fields[1];
                 std::cerr << "Processing index string: '" << indexStr << "'" << std::endl;
                 indexStr.erase(0, indexStr.find_first_not_of(" \t"));
                 indexStr.erase(indexStr.find_last_not_of(" \t") + 1);
@@ -755,7 +755,7 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
                 std::cerr << "Parsed index: 0x" << std::hex << param.index << std::endl;
                 
                 // Extract and trim subindex (second field)
-                std::string subindexStr = fields[1];
+                std::string subindexStr = fields[2];
                 std::cerr << "Processing subindex string: '" << subindexStr << "'" << std::endl;
                 subindexStr.erase(0, subindexStr.find_first_not_of(" \t"));
                 subindexStr.erase(subindexStr.find_last_not_of(" \t") + 1);
@@ -768,7 +768,7 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
                 std::cerr << "Parsed subindex: 0x" << std::hex << static_cast<int>(param.subindex) << std::endl;
                 
                 // Extract and trim length (third field)
-                std::string lengthStr = fields[2];
+                std::string lengthStr = fields[3];
                 std::cerr << "Processing length string: '" << lengthStr << "'" << std::endl;
                 lengthStr.erase(0, lengthStr.find_first_not_of(" \t"));
                 lengthStr.erase(lengthStr.find_last_not_of(" \t") + 1);
@@ -781,7 +781,7 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
                 std::cerr << "Parsed length: " << std::dec << static_cast<int>(param.length) << std::endl;
                 
                 // Extract and trim valid (fourth field)
-                std::string validStr = fields[3];
+                std::string validStr = fields[4];
                 std::cerr << "Processing valid string: '" << validStr << "'" << std::endl;
                 validStr.erase(0, validStr.find_first_not_of(" \t"));
                 validStr.erase(validStr.find_last_not_of(" \t") + 1);
@@ -792,7 +792,7 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
                 }
                 
                 // Extract and trim value (fifth field)
-                std::string valueStr = fields[4];
+                std::string valueStr = fields[5];
                 std::cerr << "Processing value string: '" << valueStr << "'" << std::endl;
                 valueStr.erase(0, valueStr.find_first_not_of(" \t"));
                 valueStr.erase(valueStr.find_last_not_of(" \t") + 1);
