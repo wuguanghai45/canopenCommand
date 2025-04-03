@@ -17,13 +17,15 @@ bool CanopenProtocol::sendNMTRestart(int nodeId) {
 }
 
 bool CanopenProtocol::sendSDO(int nodeId, const std::vector<uint8_t>& data, std::vector<uint8_t>& response, int timeout_ms) {
+    canInterface_.setFilter(nodeId + 0x600, 0x7FF);
+
     // 发送 SDO 命令
     if (!canInterface_.sendFrame(nodeId + 0x600, data)) {
         std::cerr << "Error in sending SDO" << std::endl;
         return false;
     }
 
-    if (!canInterface_.receiveFrame(nodeId, response, timeout_ms)) {
+    if (!canInterface_.receiveFrame(response, timeout_ms)) {
         return false;
     }
 
@@ -46,6 +48,8 @@ bool CanopenProtocol::sendDataBlocks(int nodeId, const std::vector<uint8_t>& dat
     const size_t BLOCK_SIZE = 127; // 每个块的最大段数
     size_t totalSegments = (data.size() + 6) / 7; // 计算总段数
     size_t currentSegment = 1;
+
+    canInterface_.setFilter(nodeId + 0x600, 0x7FF);
 
     std::cout << "totalSegments: " << totalSegments << std::endl;
 
@@ -84,7 +88,7 @@ bool CanopenProtocol::sendDataBlocks(int nodeId, const std::vector<uint8_t>& dat
         }
 
         std::vector<uint8_t> response;
-        if (!canInterface_.receiveFrame(nodeId, response, 2000)) {
+        if (!canInterface_.receiveFrame(response, 2000)) {
             std::cerr << "Timeout waiting for response at segment " << currentSegment << std::endl;
             return false;
         }

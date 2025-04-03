@@ -78,22 +78,9 @@ bool CanInterface::sendFrame(uint32_t id, const std::vector<uint8_t>& data) {
     return true;
 }
 
-bool CanInterface::receiveFrame(uint32_t id, std::vector<uint8_t>& data, int timeout_ms) {
+bool CanInterface::receiveFrame(std::vector<uint8_t>& data, int timeout_ms) {
     if (socket_ < 0) {
         std::cerr << "Socket not open" << std::endl;
-        return false;
-    }
-
-    // Set up CAN filter to only receive response messages
-    struct can_filter rfilter[2];
-    rfilter[0].can_id = (id + 0x500) + 0x80;  // Response ID
-    rfilter[0].can_mask = CAN_SFF_MASK;        // Standard frame mask
-    rfilter[1].can_id = id + 0x600;            // Request ID
-    rfilter[1].can_mask = CAN_SFF_MASK;        // Standard frame mask
-
-    if (setsockopt(socket_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
-        std::cerr << "Error setting CAN filter" << std::endl;
-        close();
         return false;
     }
 
@@ -138,4 +125,23 @@ std::string CanInterface::getInterface() const {
 
 int CanInterface::getSocket() const {
     return socket_;
+}
+
+bool CanInterface::setFilter(uint32_t can_id, uint32_t can_mask) {
+    if (socket_ < 0) {
+        std::cerr << "Socket not open" << std::endl;
+        return false;
+    }
+
+    struct can_filter filter;
+    filter.can_id = can_id;
+    filter.can_mask = can_mask;
+
+    // Set the filter
+    if (setsockopt(socket_, SOL_CAN_RAW, CAN_RAW_FILTER, &filter, sizeof(filter)) < 0) {
+        std::cerr << "Error setting CAN filter" << std::endl;
+        return false;
+    }
+
+    return true;
 } 
