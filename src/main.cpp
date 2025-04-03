@@ -641,10 +641,53 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
     std::string decVersion = firstLine.substr(hwPos, hwEnd - hwPos);
     std::cout << "Extracted decimal version string: '" << decVersion << "'" << std::endl;
     
+    // Convert decimal string to hex string with dots
+    try {
+        // Remove any non-digit characters except decimal point
+        decVersion.erase(std::remove_if(decVersion.begin(), decVersion.end(),
+            [](char c) { return !std::isdigit(c) && c != '.'; }), decVersion.end());
+        
+        std::cout << "Cleaned decimal version string: '" << decVersion << "'" << std::endl;
+        
+        // If the string contains a decimal point, convert to integer first
+        size_t dotPos = decVersion.find('.');
+        if (dotPos != std::string::npos) {
+            decVersion = decVersion.substr(0, dotPos);
+        }
+        
+        std::cout << "Final decimal version string: '" << decVersion << "'" << std::endl;
+        
+        uint32_t version = std::stoul(decVersion);
+        std::stringstream ss;
+        ss << std::hex << std::setfill('0');
+        
+        // Extract each byte and format with dots
+        ss << std::setw(2) << ((version & 0xFF000000) >> 24) << ".";
+        ss << std::setw(2) << ((version & 0x00FF0000) >> 16) << ".";
+        ss << std::setw(2) << ((version & 0x0000FF00) >> 8) << ".";
+        ss << std::setw(2) << (version & 0x000000FF);
+        
+        hardwareVersion = ss.str();
+        std::cout << "Converted hex version: '" << hardwareVersion << "'" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Error converting hardware version to hex: " << e.what() << std::endl;
+        std::cerr << "Input string was: '" << decVersion << "'" << std::endl;
+        return false;
+    }
+    
     // Skip header lines until we find the header row
     std::string line;
     bool foundHeader = false;
     while (std::getline(file, line)) {
+        // Skip empty lines
+        if (line.empty()) {
+            std::cout << "Skipping empty line" << std::endl;
+            continue;
+        }
+        
+        std::cout << "Checking line for header: '" << line << "'" << std::endl;
+        
+        // Check if this line contains all required column names
         if (line.find("NAME") != std::string::npos && 
             line.find("INDEX") != std::string::npos && 
             line.find("SUB") != std::string::npos && 
