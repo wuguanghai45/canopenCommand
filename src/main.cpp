@@ -728,12 +728,6 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
             if (lengthStr.empty()) continue;
             param.length = std::stoul(lengthStr);
             
-            // Extract and trim valid (fifth column)
-            std::string validStr = fields[4];
-            validStr.erase(0, validStr.find_first_not_of(" \t"));
-            validStr.erase(validStr.find_last_not_of(" \t") + 1);
-            if (validStr != "True") continue;
-            
             // Extract and trim value (sixth column)
             std::string valueStr = fields[5];
             valueStr.erase(0, valueStr.find_first_not_of(" \t"));
@@ -748,7 +742,12 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
             std::cout << "  Length: " << std::dec << static_cast<int>(param.length) << std::endl;
             std::cout << "  Value: " << std::dec << param.value << std::endl;
             std::cout << "----------------------------------------" << std::endl;
-            
+            // Extract and trim valid (fifth column)
+            std::string validStr = fields[4];
+            validStr.erase(0, validStr.find_first_not_of(" \t"));
+            validStr.erase(validStr.find_last_not_of(" \t") + 1);
+            if (validStr != "True") continue;
+
             params.push_back(param);
         } catch (const std::exception& e) {
             std::cerr << "Error parsing line: " << line << std::endl;
