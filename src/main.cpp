@@ -622,7 +622,10 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         std::cerr << "Failed to read first line" << std::endl;
         return false;
     }
-    std::cout << "First line content: '" << firstLine << "'" << std::endl;
+    
+    // 使用 std::cerr 来确保完整输出
+    std::cerr << "First line content: '" << firstLine << "'" << std::endl;
+    std::cerr << "First line length: " << firstLine.length() << std::endl;
     
     // Parse hardware version from first line using simple string operations
     size_t hwPos = firstLine.find("hardware version=");
@@ -630,7 +633,7 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         std::cerr << "Could not find hardware version in first line" << std::endl;
         return false;
     }
-    std::cout << "Found hardware version at position: " << hwPos << std::endl;
+    std::cerr << "Found hardware version at position: " << hwPos << std::endl;
     hwPos += 16; // Skip "hardware version="
     
     size_t hwEnd = firstLine.find_first_of(",", hwPos);
@@ -638,11 +641,11 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         std::cerr << "Could not find end of hardware version" << std::endl;
         return false;
     }
-    std::cout << "Found end of hardware version at position: " << hwEnd << std::endl;
+    std::cerr << "Found end of hardware version at position: " << hwEnd << std::endl;
     
     // Extract and trim hardware version
     std::string decVersion = firstLine.substr(hwPos, hwEnd - hwPos);
-    std::cout << "Extracted decimal version string: '" << decVersion << "'" << std::endl;
+    std::cerr << "Extracted decimal version string: '" << decVersion << "'" << std::endl;
     
     // Convert decimal string to hex string with dots
     try {
@@ -650,7 +653,7 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         decVersion.erase(std::remove_if(decVersion.begin(), decVersion.end(),
             [](char c) { return !std::isdigit(c) && c != '.'; }), decVersion.end());
         
-        std::cout << "Cleaned decimal version string: '" << decVersion << "'" << std::endl;
+        std::cerr << "Cleaned decimal version string: '" << decVersion << "'" << std::endl;
         
         // If the string contains a decimal point, convert to integer first
         size_t dotPos = decVersion.find('.');
@@ -658,7 +661,7 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
             decVersion = decVersion.substr(0, dotPos);
         }
         
-        std::cout << "Final decimal version string: '" << decVersion << "'" << std::endl;
+        std::cerr << "Final decimal version string: '" << decVersion << "'" << std::endl;
         
         uint32_t version = std::stoul(decVersion);
         std::stringstream ss;
@@ -671,24 +674,25 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         ss << std::setw(2) << (version & 0x000000FF);
         
         hardwareVersion = ss.str();
-        std::cout << "Converted hex version: '" << hardwareVersion << "'" << std::endl;
+        std::cerr << "Converted hex version: '" << hardwareVersion << "'" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Error converting hardware version to hex: " << e.what() << std::endl;
         std::cerr << "Input string was: '" << decVersion << "'" << std::endl;
         return false;
     }
     
-    std::cout << "Starting parameter parsing..." << std::endl;
+    std::cerr << "Starting parameter parsing..." << std::endl;
     // Parse parameters
     std::string line;
     while (std::getline(file, line, '\n')) {
         // Skip empty lines
         if (line.empty()) {
-            std::cout << "Skipping empty line" << std::endl;
+            std::cerr << "Skipping empty line" << std::endl;
             continue;
         }
         
-        std::cout << "Processing line: '" << line << "'" << std::endl;
+        std::cerr << "Processing line: '" << line << "'" << std::endl;
+        std::cerr << "Line length: " << line.length() << std::endl;
         
         // Split line by commas
         std::vector<std::string> fields;
@@ -701,14 +705,14 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         }
         fields.push_back(line.substr(start));
         
-        std::cout << "Found " << fields.size() << " fields" << std::endl;
+        std::cerr << "Found " << fields.size() << " fields" << std::endl;
         for (size_t i = 0; i < fields.size(); i++) {
-            std::cout << "Field " << i << ": '" << fields[i] << "'" << std::endl;
+            std::cerr << "Field " << i << ": '" << fields[i] << "'" << std::endl;
         }
         
         // Skip if we don't have enough fields
         if (fields.size() < 6) {
-            std::cout << "Skipping line - not enough fields (need 6, got " << fields.size() << ")" << std::endl;
+            std::cerr << "Skipping line - not enough fields (need 6, got " << fields.size() << ")" << std::endl;
             continue;
         }
         
@@ -718,65 +722,65 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         try {
             // Extract and trim index (first field)
             std::string indexStr = fields[0];
-            std::cout << "Processing index string: '" << indexStr << "'" << std::endl;
+            std::cerr << "Processing index string: '" << indexStr << "'" << std::endl;
             indexStr.erase(0, indexStr.find_first_not_of(" \t"));
             indexStr.erase(indexStr.find_last_not_of(" \t") + 1);
             if (indexStr.empty()) {
-                std::cout << "Skipping - empty index string after trimming" << std::endl;
+                std::cerr << "Skipping - empty index string after trimming" << std::endl;
                 continue;
             }
             param.index = std::stoul(indexStr, nullptr, 16);
-            std::cout << "Parsed index: 0x" << std::hex << param.index << std::endl;
+            std::cerr << "Parsed index: 0x" << std::hex << param.index << std::endl;
             
             // Extract and trim subindex (second field)
             std::string subindexStr = fields[1];
-            std::cout << "Processing subindex string: '" << subindexStr << "'" << std::endl;
+            std::cerr << "Processing subindex string: '" << subindexStr << "'" << std::endl;
             subindexStr.erase(0, subindexStr.find_first_not_of(" \t"));
             subindexStr.erase(subindexStr.find_last_not_of(" \t") + 1);
             if (subindexStr.empty()) {
-                std::cout << "Skipping - empty subindex string after trimming" << std::endl;
+                std::cerr << "Skipping - empty subindex string after trimming" << std::endl;
                 continue;
             }
             param.subindex = std::stoul(subindexStr, nullptr, 16);
-            std::cout << "Parsed subindex: 0x" << std::hex << static_cast<int>(param.subindex) << std::endl;
+            std::cerr << "Parsed subindex: 0x" << std::hex << static_cast<int>(param.subindex) << std::endl;
             
             // Extract and trim length (third field)
             std::string lengthStr = fields[2];
-            std::cout << "Processing length string: '" << lengthStr << "'" << std::endl;
+            std::cerr << "Processing length string: '" << lengthStr << "'" << std::endl;
             lengthStr.erase(0, lengthStr.find_first_not_of(" \t"));
             lengthStr.erase(lengthStr.find_last_not_of(" \t") + 1);
             if (lengthStr.empty()) {
-                std::cout << "Skipping - empty length string after trimming" << std::endl;
+                std::cerr << "Skipping - empty length string after trimming" << std::endl;
                 continue;
             }
             param.length = std::stoul(lengthStr);
-            std::cout << "Parsed length: " << std::dec << static_cast<int>(param.length) << std::endl;
+            std::cerr << "Parsed length: " << std::dec << static_cast<int>(param.length) << std::endl;
             
             // Extract and trim valid (fourth field)
             std::string validStr = fields[3];
-            std::cout << "Processing valid string: '" << validStr << "'" << std::endl;
+            std::cerr << "Processing valid string: '" << validStr << "'" << std::endl;
             validStr.erase(0, validStr.find_first_not_of(" \t"));
             validStr.erase(validStr.find_last_not_of(" \t") + 1);
             if (validStr != "True") {
-                std::cout << "Skipping - valid string is not 'True' (got '" << validStr << "')" << std::endl;
+                std::cerr << "Skipping - valid string is not 'True' (got '" << validStr << "')" << std::endl;
                 continue;
             }
             
             // Extract and trim value (fifth field)
             std::string valueStr = fields[4];
-            std::cout << "Processing value string: '" << valueStr << "'" << std::endl;
+            std::cerr << "Processing value string: '" << valueStr << "'" << std::endl;
             valueStr.erase(0, valueStr.find_first_not_of(" \t"));
             valueStr.erase(valueStr.find_last_not_of(" \t") + 1);
             if (valueStr.empty()) {
-                std::cout << "Skipping - empty value string after trimming" << std::endl;
+                std::cerr << "Skipping - empty value string after trimming" << std::endl;
                 continue;
             }
             param.value = std::stoull(valueStr);
-            std::cout << "Parsed value: " << std::dec << param.value << std::endl;
+            std::cerr << "Parsed value: " << std::dec << param.value << std::endl;
             
-            std::cout << "Successfully parsed all fields, adding parameter to vector" << std::endl;
+            std::cerr << "Successfully parsed all fields, adding parameter to vector" << std::endl;
             params.push_back(param);
-            std::cout << "----------------------------------------" << std::endl;
+            std::cerr << "----------------------------------------" << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "Error parsing line: '" << line << "'" << std::endl;
             std::cerr << "Error details: " << e.what() << std::endl;
