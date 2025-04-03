@@ -597,15 +597,12 @@ void upgradeMotorFirmware(int socket, const char* firmwarePath, int id, const ch
     }
 }
 
-// Structure to hold configuration parameter
+// Optimized structure to hold configuration parameter
 struct ConfigParam {
-    std::string name;
     uint16_t index;
     uint8_t subindex;
     uint8_t length;
-    bool valid;
     uint64_t value;
-    std::string comment;
 };
 
 // Function to parse cfg file
@@ -620,12 +617,17 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
     std::string firstLine;
     std::getline(file, firstLine);
     
-    // Extract hardware version using regex
-    std::regex hwVersionRegex("hardware version= ([0-9]+)");
-    std::smatch match;
-    if (std::regex_search(firstLine, match, hwVersionRegex) && match.size() > 1) {
-        hardwareVersion = match[1].str();
-    } else {
+    // Simple string parsing for hardware version
+    size_t pos = firstLine.find("hardware version=");
+    if (pos != std::string::npos) {
+        pos += 16; // Skip "hardware version="
+        size_t end = firstLine.find_first_not_of("0123456789", pos);
+        if (end != std::string::npos) {
+            hardwareVersion = firstLine.substr(pos, end - pos);
+        }
+    }
+    
+    if (hardwareVersion.empty()) {
         std::cerr << "Could not extract hardware version from first line" << std::endl;
         return false;
     }
@@ -645,9 +647,10 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         std::istringstream iss(line);
         ConfigParam param;
         
-        // Extract name (first column)
-        iss >> param.name;
-        if (param.name.empty()) continue;
+        // Skip name (first column)
+        std::string name;
+        iss >> name;
+        if (name.empty()) continue;
         
         // Extract index (second column)
         std::string indexStr;
@@ -664,20 +667,15 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         iss >> lengthStr;
         param.length = std::stoul(lengthStr);
         
-        // Extract valid (fifth column)
+        // Skip valid (fifth column)
         std::string validStr;
         iss >> validStr;
-        param.valid = (validStr == "True");
+        if (validStr != "True") continue;
         
         // Extract value (sixth column)
         std::string valueStr;
         iss >> valueStr;
         param.value = std::stoull(valueStr);
-        
-        // Extract comment (remaining part of the line)
-        std::getline(iss, param.comment);
-        // Trim leading whitespace
-        param.comment = param.comment.substr(param.comment.find_first_not_of(" \t"));
         
         params.push_back(param);
     }
@@ -724,17 +722,12 @@ bool applyConfiguration(int socket, int id, const std::vector<ConfigParam>& para
     bool success = true;
     
     for (const auto& param : params) {
-        if (!param.valid) {
-            std::cout << "Skipping " << param.name << " (valid=False)" << std::endl;
-            continue;
-        }
-        
-        std::cout << "Writing " << param.name << " (0x" << std::hex << param.index 
+        std::cout << "Writing parameter (0x" << std::hex << param.index 
                   << ":" << static_cast<int>(param.subindex) << ") = " 
                   << std::dec << param.value << std::endl;
         
         if (!writeSDO(socket, id, param.index, param.subindex, param.length, param.value)) {
-            std::cerr << "Failed to write " << param.name << std::endl;
+            std::cerr << "Failed to write parameter" << std::endl;
             success = false;
         }
     }
