@@ -617,15 +617,25 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
     std::string firstLine;
     std::getline(file, firstLine);
     
-    // Simple string parsing for hardware version
-    size_t pos = firstLine.find("hardware version=");
-    if (pos != std::string::npos) {
-        pos += 16; // Skip "hardware version="
-        size_t end = firstLine.find_first_not_of("0123456789", pos);
-        if (end != std::string::npos) {
-            hardwareVersion = firstLine.substr(pos, end - pos);
-        }
+    // Parse hardware version from first line using simple string operations
+    size_t hwPos = firstLine.find("hardware version=");
+    if (hwPos == std::string::npos) {
+        std::cerr << "Could not find hardware version in first line" << std::endl;
+        return false;
     }
+    hwPos += 16; // Skip "hardware version="
+    
+    size_t hwEnd = firstLine.find_first_of(",", hwPos);
+    if (hwEnd == std::string::npos) {
+        std::cerr << "Could not find end of hardware version" << std::endl;
+        return false;
+    }
+    
+    // Extract and trim hardware version
+    hardwareVersion = firstLine.substr(hwPos, hwEnd - hwPos);
+    // Trim whitespace
+    hardwareVersion.erase(0, hardwareVersion.find_first_not_of(" \t"));
+    hardwareVersion.erase(hardwareVersion.find_last_not_of(" \t") + 1);
     
     if (hardwareVersion.empty()) {
         std::cerr << "Could not extract hardware version from first line" << std::endl;
@@ -643,38 +653,41 @@ bool parseCfgFile(const char* cfgPath, std::vector<ConfigParam>& params, std::st
         // Skip empty lines
         if (line.empty()) continue;
         
+        // Split line by tabs
+        std::vector<std::string> fields;
+        size_t start = 0;
+        size_t end = line.find('\t');
+        while (end != std::string::npos) {
+            fields.push_back(line.substr(start, end - start));
+            start = end + 1;
+            end = line.find('\t', start);
+        }
+        fields.push_back(line.substr(start));
+        
+        // Skip if we don't have enough fields
+        if (fields.size() < 6) continue;
+        
         // Parse the line
-        std::istringstream iss(line);
         ConfigParam param;
         
-        // Skip name (first column)
-        std::string name;
-        iss >> name;
-        if (name.empty()) continue;
-        
         // Extract index (second column)
-        std::string indexStr;
-        iss >> indexStr;
+        std::string indexStr = fields[1];
         param.index = std::stoul(indexStr, nullptr, 16);
         
         // Extract subindex (third column)
-        std::string subindexStr;
-        iss >> subindexStr;
+        std::string subindexStr = fields[2];
         param.subindex = std::stoul(subindexStr, nullptr, 16);
         
         // Extract length (fourth column)
-        std::string lengthStr;
-        iss >> lengthStr;
+        std::string lengthStr = fields[3];
         param.length = std::stoul(lengthStr);
         
         // Skip valid (fifth column)
-        std::string validStr;
-        iss >> validStr;
+        std::string validStr = fields[4];
         if (validStr != "True") continue;
         
         // Extract value (sixth column)
-        std::string valueStr;
-        iss >> valueStr;
+        std::string valueStr = fields[5];
         param.value = std::stoull(valueStr);
         
         params.push_back(param);
