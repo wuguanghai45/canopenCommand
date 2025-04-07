@@ -3,31 +3,41 @@ CXX = g++
 
 # Compiler flags
 CXXFLAGS = -Wall -std=c++11 -std=gnu++11 -Os -ffunction-sections -fdata-sections -Wl,--gc-sections
+LDFLAGS = 
+
+# Source directory
+SRC_DIR = src
+
+# Object directory
+OBJ_DIR = build/obj
 
 # Target executable
-TARGET = $(BUILD_DIR)/canopen_cli
+BIN_DIR = build/bin
+TARGET = $(BIN_DIR)/canopenCommand
 
 # Source files
-SRCS = src/main.cpp
-
-# Object files directory
-BUILD_DIR = build
+SRCS = $(wildcard $(SRC_DIR)/*.cpp)
 
 # Object files with build directory
-OBJS = $(SRCS:src/%.cpp=$(BUILD_DIR)/%.o)
+OBJS = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRCS))
+
+.PHONY: all clean
+
+all: $(TARGET)
 
 # Build target
 $(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS)
+	@mkdir -p $(BIN_DIR)
+	$(CXX) $(LDFLAGS) -o $@ $^
 
 # Create build directory if it doesn't exist
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
 
 # Compile source files to object files
-$(BUILD_DIR)/%.o: src/%.cpp | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 # Clean up build files
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf build
